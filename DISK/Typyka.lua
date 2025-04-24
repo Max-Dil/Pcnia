@@ -1,4 +1,4 @@
--- Жесткий диск Typyka с реальным хранением данных и колбэками
+
 local Typyka = {
     model = "Typyka HDD-1000",
     version = "1.4",
@@ -158,12 +158,13 @@ function Typyka:manageTemperature(dt)
     end
 end
 
-function Typyka:read(address, size)
+function Typyka:read(address, size, callback)
     if not self.isSpinning then
         table.insert(self.accessQueue, {
             type = "read",
             address = address,
             size = size,
+            callback = callback,
             time = love.timer.getTime()
         })
         return nil
@@ -172,6 +173,7 @@ function Typyka:read(address, size)
     if address < 0 or address >= self.sectors * self.sectorSize then
         self.errors = self.errors + 1
         self:triggerEvent("error", "Invalid read address")
+        if callback then callback(nil, "Invalid read address") end
         return nil
     end
     
@@ -193,15 +195,17 @@ function Typyka:read(address, size)
     self.totalRead = self.totalRead + (size / (1024 * 1024))
     self:triggerEvent("read", address, size)
     
+    if callback then callback(data) end
     return data
 end
 
-function Typyka:write(address, data)
+function Typyka:write(address, data, callback)
     if not self.isSpinning then
         table.insert(self.accessQueue, {
             type = "write",
             address = address,
             data = data,
+            callback = callback,
             time = love.timer.getTime()
         })
         return false
@@ -210,6 +214,7 @@ function Typyka:write(address, data)
     if address < 0 or address + #data > self.sectors * self.sectorSize then
         self.errors = self.errors + 1
         self:triggerEvent("error", "Invalid write address")
+        if callback then callback(false, "Invalid write address") end
         return false
     end
 
@@ -235,6 +240,7 @@ function Typyka:write(address, data)
     if newUsed > self.effectiveCapacity then
         self.errors = self.errors + 1
         self:triggerEvent("error", "Not enough space")
+        if callback then callback(false, "Not enough space") end
         return false
     end
 
@@ -262,6 +268,7 @@ function Typyka:write(address, data)
     self.totalWritten = self.totalWritten + (#data / (1024 * 1024))
     self:triggerEvent("write", address, #data, affectedSectors)
     
+    if callback then callback(true) end
     return true
 end
 
@@ -317,9 +324,11 @@ function Typyka:update(dt)
         local request = table.remove(self.accessQueue, 1)
         
         if request.type == "read" then
-            return self:read(request.address, request.size)
+            local data = self:read(request.address, request.size, request.callback)
+            return data
         elseif request.type == "write" then
-            return self:write(request.address, request.data)
+            local success = self:write(request.address, request.data, request.callback)
+            return success
         end
     end
 end

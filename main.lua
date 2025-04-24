@@ -9,6 +9,7 @@ local Unsa2x10m = require("RAM.Unsa 2x10m")
 local Huga = require("MONITOR.Huga")
 local Avrora = require("GPU.Avrora")
 local Typyka = require("DISK.Typyka")
+local OC = require("OC.Bootloader")
 local font = love.graphics.newFont(14)
 _G.love = love
 
@@ -68,20 +69,30 @@ local function createAnimatedSquare(x, y)
 end
 
 function love.load()
-    Processor:init()
-    MB = Alpeg1000:init(Processor)
-    Processor.motherboard = MB
-    RAM = Unsa2x10m:init(MB)
-    Cooler = Swipan:init(Processor, MB)
-    MB:attachCooler(Cooler)
-    PSU = Enma1:init(MB)
-    GPU = Avrora:init(Processor)
-    MONITOR = Huga:init(GPU)
-    Processor:setGPU(GPU)
-    MB.gpu = GPU
-    MB.monitor = MONITOR
-    HDD = Typyka:init(MB)
-    MB:attachStorage(HDD)
+    OC:init({
+        processor = Processor,
+        mother = Alpeg1000,
+        cooler = Swipan,
+        ram = Unsa2x10m,
+        gpu = Avrora,
+        disk = Typyka,
+        blockEnergy = Enma1,
+        monitor = Huga
+    })
+    -- Processor:init()
+    -- MB = Alpeg1000:init(Processor)
+    -- Processor.motherboard = MB
+    -- RAM = Unsa2x10m:init(MB)
+    -- Cooler = Swipan:init(Processor, MB)
+    -- MB:attachCooler(Cooler)
+    -- PSU = Enma1:init(MB)
+    -- GPU = Avrora:init(Processor)
+    -- MONITOR = Huga:init(GPU)
+    -- Processor:setGPU(GPU)
+    -- MB.gpu = GPU
+    -- MB.monitor = MONITOR
+    -- HDD = Typyka:init(MB)
+    -- MB:attachStorage(HDD)
 
 --     -- Тестирование HDD
 -- HDD:addEventListener("write", function(hdd, address, size)
@@ -102,50 +113,54 @@ function love.load()
 
     -- Processor:addProcess(createSquareProgram())
 
-    drawRect(300, 200, 20, 20)
-    createAnimatedSquare(100, 100)
+--     drawRect(300, 200, 20, 20)
+--     createAnimatedSquare(100, 100)
 
-    Processor:addThread(function()
-        while true do
-            local start = love.timer.getTime()
-            -- Делаем какую-то работу
-            for i = 1, 1000 do
-                local x = math.random(1, 400)
-                local y = math.random(1, 300)
-                DTX(x, y, "Ff^2", {255, 0, 0}, 1)
-            end
-            local duration = love.timer.getTime() - start
-            print(string.format("Thread executed in %.4f sec at %d MHz", duration, Processor.currentClockSpeed))
-            SLEEP(0.5)
-        end
-    end)
+--     Processor:addThread(function()
+--         while true do
+--             local start = love.timer.getTime()
+--             -- Делаем какую-то работу
+--             for i = 1, 1000 do
+--                 local x = math.random(1, 400)
+--                 local y = math.random(1, 300)
+--                 DTX(x, y, "F", {255, 0, 0}, 1)
+--             end
+--             local duration = love.timer.getTime() - start
+--             print(string.format("Thread executed in %.4f sec at %d MHz", duration, Processor.currentClockSpeed))
+--             SLEEP(0.5)
+--         end
+--     end)
 
-    MB:addInterrupt("TIMER", {interval = 1})
+--     MB:addInterrupt("TIMER", {interval = 1})
 end
 
 function love.update(dt)
-    PSU:update(dt)
-    MB:update(dt)
-    RAM:update(dt)
-    Cooler:update(dt)
-    Processor:update(dt)
-    GPU:update(dt)
-    MONITOR:update(dt)
-    HDD:update(dt)
-
-    if love.keyboard.isDown("1") then
-        createAnimatedSquare(math.random(0, 400), math.random(0, 300))
-        drawRect(math.random(0, 400), math.random(0, 300), math.random(3, 30), math.random(3, 30))
-    end
-
-    if love.keyboard.isDown("2") then
-        Processor:removeThread(1)
-    end
-
-    if love.keyboard.isDown("b") then
-        Processor.autoBoost = not Processor.autoBoost
-    end
+    OC:update(dt)
 end
+
+-- function love.update(dt)
+--     PSU:update(dt)
+--     MB:update(dt)
+--     RAM:update(dt)
+--     Cooler:update(dt)
+--     Processor:update(dt)
+--     GPU:update(dt)
+--     MONITOR:update(dt)
+--     HDD:update(dt)
+
+--     if love.keyboard.isDown("1") then
+--         createAnimatedSquare(math.random(0, 400), math.random(0, 300))
+--         drawRect(math.random(0, 400), math.random(0, 300), math.random(3, 30), math.random(3, 30))
+--     end
+
+--     if love.keyboard.isDown("2") then
+--         Processor:removeThread(1)
+--     end
+
+--     if love.keyboard.isDown("b") then
+--         Processor.autoBoost = not Processor.autoBoost
+--     end
+-- end
 
 function love.draw()
     MONITOR:draw()
