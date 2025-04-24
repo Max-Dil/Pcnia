@@ -147,7 +147,7 @@ function Typyka:manageTemperature(dt)
     if math.floor(oldTemp) ~= math.floor(self.temperature) then
         self:triggerEvent("temperatureChange", oldTemp, self.temperature)
     end
-    
+
     if self.temperature > 50 then
         local throttle = math.min(1, (self.temperature - 50) / 20)
         self.currentReadSpeed = self.maxReadSpeed * (1 - throttle * 0.5)
@@ -173,30 +173,39 @@ function Typyka:read(address, size, callback)
     if address < 0 or address >= self.sectors * self.sectorSize then
         self.errors = self.errors + 1
         self:triggerEvent("error", "Invalid read address")
-        if callback then callback(nil, "Invalid read address") end
+        if callback then callback(nil, 0, "Invalid read address") end
         return nil
     end
-    
+
     local data = ""
     local bytesRead = 0
     local sector = math.floor(address / self.sectorSize)
     local offset = address % self.sectorSize
-    
+
     while bytesRead < size do
         local chunkSize = math.min(size - bytesRead, self.sectorSize - offset)
-        local sectorData = self.storage[sector] or string.rep("\0", self.sectorSize)
-        data = data .. string.sub(sectorData, offset + 1, offset + chunkSize)
+
+        if not self.storage[sector] then
+            break
+        end
         
+        local sectorData = self.storage[sector]
+        data = data .. string.sub(sectorData, offset + 1, offset + chunkSize)
+
         bytesRead = bytesRead + chunkSize
         sector = sector + 1
         offset = 0
     end
 
-    self.totalRead = self.totalRead + (size / (1024 * 1024))
-    self:triggerEvent("read", address, size)
-    
-    if callback then callback(data) end
-    return data
+    if bytesRead > 0 then
+        self.totalRead = self.totalRead + (bytesRead / (1024 * 1024))
+        self:triggerEvent("read", address, bytesRead)
+    end
+
+    if callback then 
+        callback(data, bytesRead, bytesRead < size and "Partial read" or nil)
+    end
+    return data, bytesRead
 end
 
 function Typyka:write(address, data, callback)
@@ -210,7 +219,7 @@ function Typyka:write(address, data, callback)
         })
         return false
     end
-    
+
     if address < 0 or address + #data > self.sectors * self.sectorSize then
         self.errors = self.errors + 1
         self:triggerEvent("error", "Invalid write address")
@@ -226,11 +235,11 @@ function Typyka:write(address, data, callback)
     local affectedSectors = {}
     while bytesToWrite > 0 do
         local chunkSize = math.min(bytesToWrite, self.sectorSize - offset)
-        
+
         if not self.storage[sector] then
-            newUsed = newUsed + (self.sectorSize / (1024 * 1024)) 
+            newUsed = newUsed + (self.sectorSize / (1024 * 1024))
         end
-        
+
         table.insert(affectedSectors, sector)
         bytesToWrite = bytesToWrite - chunkSize
         sector = sector + 1
@@ -248,7 +257,7 @@ function Typyka:write(address, data, callback)
     sector = math.floor(address / self.sectorSize)
     offset = address % self.sectorSize
     local bytesWritten = 0
-    
+
     while bytesWritten < bytesToWrite do
         local chunkSize = math.min(bytesToWrite - bytesWritten, self.sectorSize - offset)
         local chunk = string.sub(data, bytesWritten + 1, bytesWritten + chunkSize)
@@ -258,7 +267,7 @@ function Typyka:write(address, data, callback)
         sectorData = string.sub(sectorData, 1, offset) .. chunk .. 
                    string.sub(sectorData, offset + chunkSize + 1)
         self.storage[sector] = sectorData
-        
+
         bytesWritten = bytesWritten + chunkSize
         sector = sector + 1
         offset = 0
@@ -267,7 +276,7 @@ function Typyka:write(address, data, callback)
     self.usedSpace = newUsed
     self.totalWritten = self.totalWritten + (#data / (1024 * 1024))
     self:triggerEvent("write", address, #data, affectedSectors)
-    
+
     if callback then callback(true) end
     return true
 end
@@ -331,6 +340,107 @@ function Typyka:update(dt)
             return success
         end
     end
+end
+
+function Typyka:saveToFile(filename)
+    filename = filename or "Typyka_data.temp"
+
+    local saveData = {
+        meta = {
+            model = self.model,
+            version = self.version,
+            capacity = self.capacity,
+            usedSpace = self.usedSpace,
+            sectors = self.sectors,
+            sectorSize = self.sectorSize,
+            totalRead = self.totalRead,
+            totalWritten = self.totalWritten,
+            errors = self.errors,
+            wearLevel = self.wearLevel
+        },
+        storage = {}
+    }
+
+    for sector, data in pairs(self.storage) do
+        if type(data) == "string" then
+            saveData.storage[tostring(sector)] = love.data.encode("string", "base64", data)
+        end
+    end
+
+    local json = require("json")
+    local success, jsonStr = pcall(json.encode, saveData)
+    if not success then
+        self:triggerEvent("error", "Failed to encode save data: " .. jsonStr)
+        return false
+    end
+
+    local success, message = pcall(function()
+        local file = love.filesystem.newFile(filename)
+        file:open("w")
+        file:write(jsonStr)
+        file:close()
+    end)
+
+    if not success then
+        self:triggerEvent("error", "Failed to save file: " .. message)
+        return false
+    end
+
+    return true
+end
+
+function Typyka:loadFromFile(filename)
+    filename = filename or "Typyka_data.temp"
+
+    if not love.filesystem.getInfo(filename) then
+        self:triggerEvent("error", "Save file not found")
+        return false
+    end
+
+    local success, jsonStr = pcall(function()
+        local file = love.filesystem.newFile(filename)
+        file:open("r")
+        local content = file:read()
+        file:close()
+        return content
+    end)
+
+    if not success then
+        self:triggerEvent("error", "Failed to read file: " .. jsonStr)
+        return false
+    end
+
+    local json = require("json")
+    local success, saveData = pcall(json.decode, jsonStr)
+    if not success then
+        self:triggerEvent("error", "Failed to decode save data: " .. saveData)
+        return false
+    end
+
+    if saveData.meta then
+        self.model = saveData.meta.model or self.model
+        self.version = saveData.meta.version or self.version
+        self.capacity = saveData.meta.capacity or self.capacity
+        self.usedSpace = saveData.meta.usedSpace or self.usedSpace
+        self.sectors = saveData.meta.sectors or self.sectors
+        self.sectorSize = saveData.meta.sectorSize or self.sectorSize
+        self.totalRead = saveData.meta.totalRead or self.totalRead
+        self.totalWritten = saveData.meta.totalWritten or self.totalWritten
+        self.errors = saveData.meta.errors or self.errors
+        self.wearLevel = saveData.meta.wearLevel or self.wearLevel
+    end
+
+    self.storage = {}
+    if saveData.storage then
+        for sectorStr, encodedData in pairs(saveData.storage) do
+            local sector = tonumber(sectorStr)
+            if sector then
+                self.storage[sector] = love.data.decode("string", "base64", encodedData)
+            end
+        end
+    end
+
+    return true
 end
 
 return Typyka
