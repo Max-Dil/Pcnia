@@ -201,7 +201,7 @@ function Typyka:write(address, data, callback)
     local newDataSize = #data * 8
     local sizeDifference = newDataSize - oldDataSize
 
-    if (self.usedSpace + sizeDifference) > self.effectiveCapacity then
+    if (self.usedSpace + sizeDifference)/1024/1024 > self.effectiveCapacity then
         self.errors = self.errors + 1
         self:triggerEvent("error", "Not enough space")
         if callback then callback(false, "Not enough space") end

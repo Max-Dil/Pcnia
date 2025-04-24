@@ -10,7 +10,7 @@ local Avrora = {
 
     -- Память
     MEMORY = {},
-    memory_size = 400,        -- MB
+    memory_size = 500,        -- MB
     memory_type = "GDDR1X",
     memory_bus_width = 8,
     memory_bandwidth = 0.05, -- GB/s
@@ -188,21 +188,21 @@ function Avrora:clear()
         for x = 1, self.resolution.width do
             if self.frame_buffer[y][x][1] ~= 0 or self.frame_buffer[y][x][2] ~= 0 or self.frame_buffer[y][x][3] ~= 0 then
                 changed_pixels = changed_pixels + 1
-                self.frame_buffer[y][x] = {0,0,0}
+                self.frame_buffer[y][x] = {0, 0, 0}
             end
         end
     end
     self.pixel_draw_count = changed_pixels
-
-    -- for y = 1, self.resolution.height do
-    --     for x = 1, self.resolution.width do
-    --         if math.random() < 0.5 then
-    --             self.frame_buffer[y][x] = {math.random(0, 255), math.random(0, 255), math.random(0, 255)}
-    --             self.pixel_draw_count = self.pixel_draw_count + 1
-    --         end
-    --     end
-    -- end
 end
+
+-- for y = 1, self.resolution.height do
+--     for x = 1, self.resolution.width do
+--         if math.random() < 0.5 then
+--             self.frame_buffer[y][x] = {math.random(0, 255), math.random(0, 255), math.random(0, 255)}
+--             self.pixel_draw_count = self.pixel_draw_count + 1
+--         end
+--     end
+-- end
 
 function Avrora:getCore()
     return Avrora.CUDA_cores + (Avrora.RT_cores * 0.8) + (Avrora.TMUs * 0.6) + (Avrora.ROPs * 0.4)
@@ -216,7 +216,7 @@ function Avrora:renderFrame()
         for x = 1, self.resolution.width do
             if self.frame_buffer[y][x][1] ~= 0 or self.frame_buffer[y][x][2] ~= 0 or self.frame_buffer[y][x][3] ~= 0 then
                 changed_pixels = changed_pixels + 1
-                memory = memory + 3
+                memory = memory + (#tostring(self.frame_buffer[y][x][1]) + #tostring(self.frame_buffer[y][x][2]) + #tostring(self.frame_buffer[y][x][3]))/64
                 if memory / self.memory_size > 100 then
                     memory = 0
                     Avrora:clear()
