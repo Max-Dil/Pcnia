@@ -1,7 +1,7 @@
 local bit = require("bit")
 local Processor = {
     model = "Zero1",
-    version = "1.2",
+    version = "1.3",
 
     registers = {
         A = 0,      -- Аккумулятор
@@ -14,6 +14,7 @@ local Processor = {
 
     threads = {},   -- Потоки (корутины)
     currentThread = 1,
+    threadLoad = {}, -- Загрузка каждого потока
 
     baseClockSpeed = 150,  -- базовая частота (операций в секунду)
     currentClockSpeed = 150,
@@ -34,7 +35,17 @@ local Processor = {
     thermalThrottle = false, -- флаг троттлинга
 
     lastTime = 0,
+    cpuLoad = 0,          -- Загрузка CPU в %
+    performanceFactor = 1, -- Фактор производительности (0-1)
 }
+
+function Processor:applyLoadDelay()
+    if self.performanceFactor < 0.3 then
+        local delay = (1 - self.performanceFactor) * 0.1
+        local start = love.timer.getTime()
+        while (love.timer.getTime() - start) < delay do end
+    end
+end
 
 function Processor:init()
     self.registers.SP = 128
@@ -43,73 +54,92 @@ function Processor:init()
     self.TPD = 0
     self.thermalThrottle = false
     self.gpu = nil
+    self.cpuLoad = 0
+    self.performanceFactor = 1
 end
 
 function Processor:LDA(value)
+    self:applyLoadDelay()
     self.registers.A = value
 end
 
 function Processor:STA(addr)
+    self:applyLoadDelay()
     self.motherboard:writeMemory(addr, self.registers.A)
 end
 
 function Processor:LDX(value)
+    self:applyLoadDelay()
     self.registers.X = value
 end
 
 function Processor:STX(addr)
+    self:applyLoadDelay()
     self.motherboard:writeMemory(addr, self.registers.X)
 end
 
 function Processor:LDY(value)
+    self:applyLoadDelay()
     self.registers.Y = value
 end
 
 function Processor:STY(addr)
+    self:applyLoadDelay()
     self.motherboard:writeMemory(addr, self.registers.Y)
 end
 
 function Processor:ADD(a, b)
+    self:applyLoadDelay()
     return (a or self.registers.A) + (b or 0)
 end
 
 function Processor:SUB(a, b)
+    self:applyLoadDelay()
     return (a or self.registers.A) - (b or 0)
 end
 
 function Processor:MUL(a, b)
+    self:applyLoadDelay()
     return (a or self.registers.A) * (b or 1)
 end
 
 function Processor:DIV(a, b)
+    self:applyLoadDelay()
     return (a or self.registers.A) / (b or 1)
 end
 
 function Processor:AND(a, b)
+    self:applyLoadDelay()
     return bit.band(a or self.registers.A, b or 0)
 end
 
 function Processor:OR(a, b)
+    self:applyLoadDelay()
     return bit.bor(a or self.registers.A, b or 0)
 end
 
 function Processor:XOR(a, b)
+    self:applyLoadDelay()
     return bit.bxor(a or self.registers.A, b or 0)
 end
 
 function Processor:NOT(a)
+    self:applyLoadDelay()
     return bit.bnot(a or self.registers.A)
 end
 
 function Processor:SHL(a, bits)
+    self:applyLoadDelay()
     return bit.lshift(a or self.registers.A, bits or 1)
 end
 
 function Processor:SHR(a, bits)
+    self:applyLoadDelay()
     return bit.rshift(a or self.registers.A, bits or 1)
 end
 
 function Processor:CMP(a, b)
+    self:applyLoadDelay()
     local result = (a or self.registers.A) - (b or 0)
     if result == 0 then
         self.registers.SR = bit.bor(self.registers.SR, 0x02)
@@ -120,28 +150,33 @@ function Processor:CMP(a, b)
 end
 
 function Processor:PUSH(value)
+    self:applyLoadDelay()
     self.motherboard:writeMemory(self.registers.SP, value or self.registers.A)
     self.registers.SP = self.registers.SP + 1
 end
 
 function Processor:POP()
+    self:applyLoadDelay()
     self.registers.SP = self.registers.SP - 1
     return self.motherboard:readMemory(self.registers.SP)
 end
 
 function Processor:DRW(x, y, r, g, b)
+    self:applyLoadDelay()
     if self.gpu then
         self.gpu:drawPixel(x, y, {r, g, b})
     end
 end
 
 function Processor:DTX(x, y, text, color, scale)
+    self:applyLoadDelay()
     if self.gpu then
         self.gpu:drawText(x, y, text, color, scale)
     end
 end
 
 function Processor:SLEEP(seconds)
+    self:applyLoadDelay()
     local start = self.lastTime or love.timer.getTime()
     while (love.timer.getTime() - start) < seconds do
         coroutine.yield()
@@ -150,6 +185,32 @@ end
 
 function Processor:setGPU(gpu)
     self.gpu = gpu
+end
+
+function Processor:updatePerformanceFactor()
+    local loadFactor = 1 - math.min(1, #self.threads / 8)
+    local thermalFactor = 1 - math.min(1, self.TPD / self.maxTPD)
+    
+    self.performanceFactor = math.min(loadFactor, thermalFactor)
+
+    if self.cpuLoad > 80 then
+        self.performanceFactor = self.performanceFactor * 0.8
+    end
+    
+    self.performanceFactor = math.max(0.1, self.performanceFactor)
+end
+
+function Processor:updateCpuLoad()
+    local activeThreads = 0
+    for i, thread in ipairs(self.threads) do
+        if coroutine.status(thread) ~= "dead" then
+            activeThreads = activeThreads + 1
+        end
+    end
+    
+    local maxThreads = 16
+    local clockFactor = self.currentClockSpeed / self.baseClockSpeed
+    self.cpuLoad = math.min(100, (activeThreads / maxThreads) * 100 * clockFactor)
 end
 
 function Processor:addThread(func)
@@ -279,13 +340,13 @@ end
 function Processor:tick()
     if #self.threads == 0 then return end
 
-    if self.currentClockSpeed < self.baseClockSpeed then
-        local delay = (1/self.currentClockSpeed) - (1/self.baseClockSpeed)
-        if delay > 0 then
-            local start = love.timer.getTime()
-            while (love.timer.getTime() - start) < delay do
-            end
-        end
+    self:updatePerformanceFactor()
+    self:updateCpuLoad()
+
+    if self.performanceFactor < 0.5 then
+        local delay = (0.5 - self.performanceFactor) * 0.05
+        local start = love.timer.getTime()
+        while (love.timer.getTime() - start) < delay do end
     end
 
     local thread = self.threads[self.currentThread]
@@ -296,15 +357,21 @@ function Processor:tick()
 
     if coroutine.status(thread) == "dead" then
         table.remove(self.threads, self.currentThread)
+        self.threadLoad[thread] = nil
         self:updatePowerUsage()
+        self:updateCpuLoad()
         return
     end
 
+    self.threadLoad[thread] = (self.threadLoad[thread] or 0) + 1
+    
     local ok, err = coroutine.resume(thread)
     if not ok then
         print("Thread error:", err)
         table.remove(self.threads, self.currentThread)
+        self.threadLoad[thread] = nil
         self:updatePowerUsage()
+        self:updateCpuLoad()
         return
     end
 
@@ -340,9 +407,36 @@ function Processor:getInfo()
         TPD = self.TPD,
         maxTPD = self.maxTPD,
         threads = #self.threads,
+        activeThreads = self:countActiveThreads(),
         autoBoost = self.autoBoost,
-        thermalThrottle = self.thermalThrottle
+        thermalThrottle = self.thermalThrottle,
+        cpuLoad = self.cpuLoad,
+        performanceFactor = self.performanceFactor,
+        threadLoads = self:getThreadLoads()
     }
+end
+
+function Processor:countActiveThreads()
+    local count = 0
+    for _, thread in ipairs(self.threads) do
+        if coroutine.status(thread) ~= "dead" then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+function Processor:getThreadLoads()
+    local loads = {}
+    for thread, load in pairs(self.threadLoad) do
+        if coroutine.status(thread) ~= "dead" then
+            loads[#loads+1] = {
+                thread = tostring(thread),
+                load = load
+            }
+        end
+    end
+    return loads
 end
 
 return Processor

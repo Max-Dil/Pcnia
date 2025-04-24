@@ -22,6 +22,24 @@ function ProcessorCore:init()
     self.gpu = nil
 end
 
+function ProcessorCore:applyLoadDelay()
+    if self.performanceFactor < 0.3 then
+        local delay = (1 - self.performanceFactor) * 0.1
+        local start = love.timer.getTime()
+        while (love.timer.getTime() - start) < delay do end
+    end
+end
+function ProcessorCore:updatePerformanceFactor(cpuLoad, thermalFactor)
+    local loadFactor = 1 - math.min(1, #self.threads / 8)
+    self.performanceFactor = math.min(loadFactor, thermalFactor)
+
+    if cpuLoad > 80 then
+        self.performanceFactor = self.performanceFactor * 0.8
+    end
+    
+    self.performanceFactor = math.max(0.1, self.performanceFactor)
+end
+
 function ProcessorCore:LDA(value)
     self.registers.A = value
 end
@@ -169,7 +187,7 @@ function ProcessorCore:addThread(func)
     end)
 
     table.insert(self.threads, co)
-    return true
+    return true, co
 end
 
 function ProcessorCore:tick()
@@ -225,11 +243,14 @@ local DualCoreProcessor = {
     
     lastTime = 0,
 
-    motherboard = nil
+    motherboard = nil,
+
+    cpuLoad = 0,          -- Общая загрузка CPU в %
+    performanceFactor = 1, -- Общий фактор производительности
+    threadLoad = {},       -- Нагрузка по потокам
 }
 
 function DualCoreProcessor:init()
-    -- Initialize two cores
     self.cores[1] = setmetatable({}, {__index = ProcessorCore})
     self.cores[2] = setmetatable({}, {__index = ProcessorCore})
     self.cores[1]:init()
@@ -240,6 +261,8 @@ function DualCoreProcessor:init()
     self.TPD = 0
     self.thermalThrottle = false
     self.gpu = nil
+    self.cpuLoad = 0
+    self.performanceFactor = 1
 end
 
 function DualCoreProcessor:setGPU(gpu)
@@ -254,6 +277,31 @@ function DualCoreProcessor:setMotherboard(motherboard)
     self.cores[2].motherboard = motherboard
 end
 
+function DualCoreProcessor:updateCpuLoad()
+    local activeThreads = 0
+    for _, core in ipairs(self.cores) do
+        for _, thread in ipairs(core.threads) do
+            if coroutine.status(thread) ~= "dead" then
+                activeThreads = activeThreads + 1
+            end
+        end
+    end
+    
+    local maxThreads = 32
+    local clockFactor = self.currentClockSpeed / self.baseClockSpeed
+    self.cpuLoad = math.min(100, (activeThreads / maxThreads) * 100 * clockFactor)
+end
+
+function DualCoreProcessor:updatePerformance()
+    local thermalFactor = 1 - math.min(1, self.TPD / self.maxTPD)
+
+    for _, core in ipairs(self.cores) do
+        core:updatePerformanceFactor(self.cpuLoad, thermalFactor)
+    end
+
+    self.performanceFactor = (self.cores[1].performanceFactor + self.cores[2].performanceFactor) / 2
+end
+
 function DualCoreProcessor:addThread(func)
     local coreToUse = (#self.cores[1].threads <= #self.cores[2].threads) and 1 or 2
     
@@ -262,9 +310,11 @@ function DualCoreProcessor:addThread(func)
         return false
     end
     
-    local success = self.cores[coreToUse]:addThread(func)
+    local success, co = self.cores[coreToUse]:addThread(func)
     if success then
+        self.threadLoad[co] = 0
         self:updatePowerUsage()
+        self:updateCpuLoad()
     end
     return success
 end
@@ -344,8 +394,46 @@ function DualCoreProcessor:autoBoostClock()
 end
 
 function DualCoreProcessor:tick()
-    self.cores[1]:tick()
-    self.cores[2]:tick()
+    self:updatePerformance()
+    self:updateCpuLoad()
+    
+    if self.performanceFactor < 0.5 then
+        local delay = (0.5 - self.performanceFactor) * 0.05
+        local start = love.timer.getTime()
+        while (love.timer.getTime() - start) < delay do end
+    end
+
+    for _, core in ipairs(self.cores) do
+        if #core.threads > 0 then
+            local thread = core.threads[core.currentThread]
+            if not thread then
+                core.currentThread = core.currentThread % #core.threads + 1
+                goto continue
+            end
+
+            if coroutine.status(thread) == "dead" then
+                table.remove(core.threads, core.currentThread)
+                self.threadLoad[thread] = nil
+                self:updatePowerUsage()
+                self:updateCpuLoad()
+                goto continue
+            end
+
+            self.threadLoad[thread] = (self.threadLoad[thread] or 0) + 1
+            
+            local ok, err = coroutine.resume(thread)
+            if not ok then
+                print("Thread error:", err)
+                table.remove(core.threads, core.currentThread)
+                self.threadLoad[thread] = nil
+                self:updatePowerUsage()
+                self:updateCpuLoad()
+            end
+
+            core.currentThread = core.currentThread % #core.threads + 1
+        end
+        ::continue::
+    end
 end
 
 function DualCoreProcessor:update(dt)
@@ -369,6 +457,7 @@ end
 function DualCoreProcessor:getInfo()
     local core1Threads = #self.cores[1].threads
     local core2Threads = #self.cores[2].threads
+    local activeThreads = self:countActiveThreads()
     
     return {
         clockSpeed = self.currentClockSpeed,
@@ -380,11 +469,50 @@ function DualCoreProcessor:getInfo()
         TPD = self.TPD,
         maxTPD = self.maxTPD,
         threads = core1Threads + core2Threads,
+        activeThreads = activeThreads,
         core1Threads = core1Threads,
         core2Threads = core2Threads,
         autoBoost = self.autoBoost,
-        thermalThrottle = self.thermalThrottle
+        thermalThrottle = self.thermalThrottle,
+        cpuLoad = self.cpuLoad,
+        performanceFactor = self.performanceFactor,
+        threadLoads = self:getThreadLoads()
     }
+end
+
+function DualCoreProcessor:countActiveThreads()
+    local count = 0
+    for _, core in ipairs(self.cores) do
+        for _, thread in ipairs(core.threads) do
+            if coroutine.status(thread) ~= "dead" then
+                count = count + 1
+            end
+        end
+    end
+    return count
+end
+
+function DualCoreProcessor:getThreadLoads()
+    local loads = {}
+    for thread, load in pairs(self.threadLoad) do
+        if type(thread) == "thread" and coroutine.status(thread) ~= "dead" then
+            loads[#loads+1] = {
+                thread = tostring(thread),
+                load = load,
+                core = (self:threadBelongsToCore(thread, 1) and 1 or 2)
+            }
+        end
+    end
+    return loads
+end
+
+function DualCoreProcessor:threadBelongsToCore(thread, coreIndex)
+    for _, t in ipairs(self.cores[coreIndex].threads) do
+        if t == thread then
+            return true
+        end
+    end
+    return false
 end
 
 return DualCoreProcessor
