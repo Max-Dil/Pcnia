@@ -112,6 +112,12 @@ function ProcessorCore:DRW(x, y, r, g, b)
     end
 end
 
+function ProcessorCore:DTX(x, y, text, color, scale)
+    if self.gpu then
+        self.gpu:drawText(x, y, text, color, scale)
+    end
+end
+
 function ProcessorCore:SLEEP(seconds)
     local start = self.lastTime or love.timer.getTime()
     while (love.timer.getTime() - start) < seconds do
@@ -142,6 +148,7 @@ function ProcessorCore:addThread(func)
             PUSH = function(v) coroutine.yield() return self:PUSH(v) end,
             POP = function() coroutine.yield() return self:POP() end,
             DRW = function(x, y, r, g, b) coroutine.yield() return self:DRW(x, y, r, g, b) end,
+            DTX = function(x, y, text, color, scale) coroutine.yield() return self:DTX(x, y, text, color, scale) end,
             SLEEP = function(s) return self:SLEEP(s) end,
 
             A = function() coroutine.yield() return self.registers.A end,

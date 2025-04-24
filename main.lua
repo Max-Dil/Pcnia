@@ -2,10 +2,8 @@
 
 --local Processor = require("CPU.Zero1")
 local Processor = require("CPU.Zero2")
---local Processor = require("CPU.ZeroUltraMax")
 local Alpeg1000 = require("MOTHER.Alpeg1000")
 local Enma1 = require("POWER.Enma1")
---local Enma1 = require("POWER.EnmaUltraMax1")
 local Swipan = require("COOLER.Swipan")
 local Unsa2x10m = require("RAM.Unsa 2x10m")
 local Huga = require("MONITOR.Huga")
@@ -114,7 +112,7 @@ function love.load()
             for i = 1, 1000 do
                 local x = math.random(1, 400)
                 local y = math.random(1, 300)
-                DRW(x, y, 255, 0, 0)
+                DTX(x, y, "Ff^2", {255, 0, 0}, 1)
             end
             local duration = love.timer.getTime() - start
             print(string.format("Thread executed in %.4f sec at %d MHz", duration, Processor.currentClockSpeed))
