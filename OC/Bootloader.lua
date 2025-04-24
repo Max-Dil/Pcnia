@@ -45,7 +45,7 @@ function OC:init(data)
         DTX(MONITOR.resolution.width/2 - (6 * #X()), MONITOR.resolution.height/2 - 10, X(), A(), 2)
     end)
     
-    --HDD:loadFromFile()
+    HDD:loadFromFile()
     HDD:read("is_load", function (is_load)
         if is_load ~= "true" then
             HDD:write("is_load", "true", function(success)

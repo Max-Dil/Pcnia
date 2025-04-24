@@ -196,20 +196,26 @@ function Typyka:write(address, data, callback)
         })
         return false
     end
-    local bytesToWrite = #data * 8
 
-    local newUsed = self.usedSpace + bytesToWrite
-    if newUsed > self.effectiveCapacity then
+    local oldDataSize = self.storage[address] and (#self.storage[address] * 8) or 0
+    local newDataSize = #data * 8
+    local sizeDifference = newDataSize - oldDataSize
+
+    if (self.usedSpace + sizeDifference) > self.effectiveCapacity then
         self.errors = self.errors + 1
         self:triggerEvent("error", "Not enough space")
         if callback then callback(false, "Not enough space") end
         return false
     end
-    self.storage[address] = data
 
-    self.usedSpace = newUsed
-    self.totalWritten = self.totalWritten + ((#data * 8) / (1024 * 1024))
-    self:triggerEvent("write", address, #data * 8)
+    self.storage[address] = data
+    self.usedSpace = self.usedSpace + sizeDifference
+
+    if newDataSize > 0 then
+        self.totalWritten = self.totalWritten + (newDataSize / (1024 * 1024))
+    end
+    
+    self:triggerEvent("write", address, newDataSize)
 
     if callback then callback(true) end
     return true
@@ -351,11 +357,13 @@ function Typyka:loadFromFile(filename)
         return false
     end
 
+    self.storage = {}
+    self.usedSpace = 0
+
     if saveData.meta then
         self.model = saveData.meta.model or self.model
         self.version = saveData.meta.version or self.version
         self.capacity = saveData.meta.capacity or self.capacity
-        self.usedSpace = saveData.meta.usedSpace or self.usedSpace
         self.sectors = saveData.meta.sectors or self.sectors
         self.sectorSize = saveData.meta.sectorSize or self.sectorSize
         self.totalRead = saveData.meta.totalRead or self.totalRead
@@ -364,12 +372,12 @@ function Typyka:loadFromFile(filename)
         self.wearLevel = saveData.meta.wearLevel or self.wearLevel
     end
 
-    self.storage = {}
     if saveData.storage then
-        for sectorStr, encodedData in pairs(saveData.storage) do
-            local sector = tonumber(sectorStr)
+        for sector, encodedData in pairs(saveData.storage) do
             if sector then
-                self.storage[sector] = love.data.decode("string", "base64", encodedData)
+                local data = love.data.decode("string", "base64", encodedData)
+                self.storage[sector] = data
+                self.usedSpace = self.usedSpace + #data * 8
             end
         end
     end
