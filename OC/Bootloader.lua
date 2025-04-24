@@ -17,7 +17,7 @@ function OC:init(data)
     CPU = data.processor
     data.processor:init()
     MB = data.mother:init(data.processor)
-    data.processor.motherboard = MB
+    CPU:setMotherboard(MB)
     RAM = data.ram:init(MB)
     Cooler = data.cooler:init(data.processor, MB)
     MB:attachCooler(Cooler)
@@ -39,8 +39,23 @@ function OC:init(data)
     HDD:addEventListener("read", function(hdd, address, size)
         print(string.format("[HDD] Read: addr=%d, size=%d", address, size))
     end)
+
+    CPU:addThread(function ()
+        LDA(255); LDX(255); LDY(255)
+
+        write(0, "Load TinyOC")
+        DTX(10, 10, read(0), {A(), X(), Y()}, 2)
+
+        write(0, "by Stimor")
+        DTX(MONITOR.resolution.width - 70 , MONITOR.resolution.height - 10, read(0), {A(), X(), Y()}, 1)
+
+        write(0, "Tiny OC corparation"); LDX(0)
+        DTX(MONITOR.resolution.width/2 - (6 * #read(0)), MONITOR.resolution.height/2 - 10, read(0), {A(), X(), Y()}, 2)
+
+        write(0, nil)
+    end)
     
-    HDD:loadFromFile()
+    --HDD:loadFromFile()
     HDD:read(0, 512, function (mbr, bytesRead, err)
         if err then
             local bootloader = string.rep("\0", 510)
@@ -69,9 +84,6 @@ function OC:installDefaultOS()
     local kernel = {
         version = self.version,
         name = self.name,
-        init = string.dump(function ()
-            print(900)
-        end)
     }
 
     local kernelData = json.encode(kernel)
@@ -87,11 +99,25 @@ function OC:installDefaultOS()
 end
 
 function OC:startOS()
+    local init = function ()
+        CPU:addThread(function ()
+            GPU:clear()
+
+            LDA(255); LDX(255); LDY(255)
+            write(0, "TinyOs")
+            DTX(10, 10, read(0), {A(), X(), Y()}, 2)
+            write(0, nil)
+        end)
+    end
     HDD:read(0x1000, 1024, function(kernelData, bytesRead, err)
         kernelData = string.gsub(kernelData, "\0", "")
+        if kernelData == '' then
+            print("[OS] Error: Invalid kernel data")
+            self:installDefaultOS()
+            return
+        end
         local kernel = json.decode(kernelData)
-        if kernel and kernel.init then
-            local init = loadstring(kernel.init)
+        if kernel then
             init()
         else
             print("[OS] Error: Invalid kernel data")
@@ -109,6 +135,10 @@ function OC:update(dt)
     GPU:update(dt)
     MONITOR:update(dt)
     HDD:update(dt)
+end
+
+function OC:draw()
+    MONITOR:draw()
 end
 
 return OC

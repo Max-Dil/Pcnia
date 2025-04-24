@@ -163,7 +163,7 @@ end
 -- end
 
 function love.draw()
-    MONITOR:draw()
+    OC:draw()
 
     love.graphics.setColor(1, 1, 1)
     love.graphics.setFont(font)

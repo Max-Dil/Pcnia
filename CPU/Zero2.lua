@@ -224,6 +224,8 @@ local DualCoreProcessor = {
     thermalThrottle = false,
     
     lastTime = 0,
+
+    motherboard = nil
 }
 
 function DualCoreProcessor:init()
@@ -244,6 +246,12 @@ function DualCoreProcessor:setGPU(gpu)
     self.gpu = gpu
     self.cores[1].gpu = gpu
     self.cores[2].gpu = gpu
+end
+
+function DualCoreProcessor:setMotherboard(motherboard)
+    self.motherboard = motherboard
+    self.cores[1].motherboard = motherboard
+    self.cores[2].motherboard = motherboard
 end
 
 function DualCoreProcessor:addThread(func)

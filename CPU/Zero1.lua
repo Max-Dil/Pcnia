@@ -210,6 +210,10 @@ function Processor:calculatePotentialPower(numThreads)
     return self.maxPowerUsage * load * (self.currentClockSpeed / self.baseClockSpeed)
 end
 
+function Processor:setMotherboard(motherboard)
+    self.motherboard = motherboard
+end
+
 function Processor:removeThread(index)
     table.remove(self.threads, index)
     self:updatePowerUsage()
