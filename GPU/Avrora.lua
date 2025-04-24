@@ -221,10 +221,10 @@ function Avrora:renderFrame()
         for x = 1, self.resolution.width do
             if self.frame_buffer[y][x][1] ~= 0 or self.frame_buffer[y][x][2] ~= 0 or self.frame_buffer[y][x][3] ~= 0 then
                 changed_pixels = changed_pixels + 1
-                memory = memory + 32
+                memory = memory + 85
                 if is_remove then
                     changed_pixels = changed_pixels - 1
-                    memory = memory - 32
+                    memory = memory - 85
                     self.frame_buffer[y][x] = {0,0,0}
                 end
                 if memory / 1024 / self.memory_size > 100 then

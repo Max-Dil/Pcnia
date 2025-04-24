@@ -249,7 +249,7 @@ function OC:startOS()
                 LDX(kernel.name .. " v" .. kernel.version)
                 DTX(10, 10, X(), A(), 2)
 
-                DRE(50, 50, 200, 150, {255, 255, 255})
+                --DRE(0, 0, 400, 300, {255, 255, 255})
             end)
             read(1)()
             -- for i = 1, #kernel.auto_load_apps, 1 do
