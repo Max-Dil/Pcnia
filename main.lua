@@ -211,7 +211,7 @@ function love.draw()
     local ramInfo = RAM:getInfo()
     love.graphics.print(string.format("RAM: %s %dMB", ramInfo.model, ramInfo.capacity), 300, 170)
     love.graphics.print(string.format("Freq: %dMHz, Timings: %s", ramInfo.frequency, ramInfo.timings), 300, 190)
-    love.graphics.print(string.format("Usage: %.1f%%, Temp: %.1f°C", ramInfo.utilization, ramInfo.temperature), 300, 210)
+    love.graphics.print(string.format("Usage: %.1f%%, Temp: %.1f°C, RAM: %d", ramInfo.utilization, ramInfo.temperature, ramInfo.freeMemory / 1024), 300, 210)
     love.graphics.print(string.format("Power: %.1fW, Errors: %d", ramInfo.powerUsage, ramInfo.errors), 300, 230)
     ramInfo = nil
 
@@ -226,8 +226,8 @@ function love.draw()
 
     local hddInfo = HDD:getInfo()
 love.graphics.print(string.format("HDD: %s (%.1f°C)", hddInfo.model, hddInfo.temperature), 300, 390)
-love.graphics.print(string.format("Usage: %.2fMB/%.2fGB (%.1f%%)", 
-    hddInfo.usedSpace, hddInfo.capacity/1024, hddInfo.utilization), 300, 410)
+love.graphics.print(string.format("Usage: %.2fMB/%.2fGB", 
+    hddInfo.usedSpace/1024, hddInfo.capacity/1024), 300, 410)
 love.graphics.print(string.format("Speed: R:%.1f/W:%.1f MB/s", 
     hddInfo.readSpeed, hddInfo.writeSpeed), 300, 430)
 love.graphics.print(string.format("Power: %.1fW, State: %s", 

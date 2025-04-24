@@ -4,7 +4,7 @@ local Typyka = {
     version = "1.4",
 
     capacity = 1024,          -- В мегабайтах (1 ГБ)
-    usedSpace = 0,            -- Используемое пространство в MB
+    usedSpace = 0,            -- Используемое пространство в byte
     rotationSpeed = 7200,     -- RPM
     cacheSize = 64,           -- Размер кэша в MB
 
@@ -76,15 +76,15 @@ function Typyka:init(motherboard)
     self:addEventListener("spinUp", function(hdd)
         print(string.format("[%s] Disk spun up", hdd.model))
     end)
-    
+
     self:addEventListener("spinDown", function(hdd)
         print(string.format("[%s] Disk spun down", hdd.model))
     end)
-    
+
     self:addEventListener("error", function(hdd, errorType)
         print(string.format("[%s] Error: %s", hdd.model, errorType))
     end)
-    
+
     return self
 end
 
@@ -158,52 +158,29 @@ function Typyka:manageTemperature(dt)
     end
 end
 
-function Typyka:read(address, size, callback)
+function Typyka:read(address, callback)
     if not self.isSpinning then
         table.insert(self.accessQueue, {
             type = "read",
             address = address,
-            size = size,
             callback = callback,
             time = love.timer.getTime()
         })
         return nil
     end
 
-    if address < 0 or address >= self.sectors * self.sectorSize then
-        self.errors = self.errors + 1
-        self:triggerEvent("error", "Invalid read address")
-        if callback then callback(nil, 0, "Invalid read address") end
-        return nil
-    end
-
-    local data = ""
     local bytesRead = 0
-    local sector = math.floor(address / self.sectorSize)
-    local offset = address % self.sectorSize
+    local data = self.storage[address] or ""
 
-    while bytesRead < size do
-        local chunkSize = math.min(size - bytesRead, self.sectorSize - offset)
-
-        if not self.storage[sector] then
-            break
-        end
-        
-        local sectorData = self.storage[sector]
-        data = data .. string.sub(sectorData, offset + 1, offset + chunkSize)
-
-        bytesRead = bytesRead + chunkSize
-        sector = sector + 1
-        offset = 0
-    end
+    bytesRead = #data * 8
 
     if bytesRead > 0 then
         self.totalRead = self.totalRead + (bytesRead / (1024 * 1024))
         self:triggerEvent("read", address, bytesRead)
     end
 
-    if callback then 
-        callback(data, bytesRead, bytesRead < size and "Partial read" or nil)
+    if callback then
+        callback(data, bytesRead)
     end
     return data, bytesRead
 end
@@ -219,63 +196,20 @@ function Typyka:write(address, data, callback)
         })
         return false
     end
+    local bytesToWrite = #data * 8
 
-    if address < 0 or address + #data > self.sectors * self.sectorSize then
-        self.errors = self.errors + 1
-        self:triggerEvent("error", "Invalid write address")
-        if callback then callback(false, "Invalid write address") end
-        return false
-    end
-
-    local newUsed = self.usedSpace
-    local bytesToWrite = #data
-    local sector = math.floor(address / self.sectorSize)
-    local offset = address % self.sectorSize
-
-    local affectedSectors = {}
-    while bytesToWrite > 0 do
-        local chunkSize = math.min(bytesToWrite, self.sectorSize - offset)
-
-        if not self.storage[sector] then
-            newUsed = newUsed + (self.sectorSize / (1024 * 1024))
-        end
-
-        table.insert(affectedSectors, sector)
-        bytesToWrite = bytesToWrite - chunkSize
-        sector = sector + 1
-        offset = 0
-    end
-
+    local newUsed = self.usedSpace + bytesToWrite
     if newUsed > self.effectiveCapacity then
         self.errors = self.errors + 1
         self:triggerEvent("error", "Not enough space")
         if callback then callback(false, "Not enough space") end
         return false
     end
-
-    bytesToWrite = #data
-    sector = math.floor(address / self.sectorSize)
-    offset = address % self.sectorSize
-    local bytesWritten = 0
-
-    while bytesWritten < bytesToWrite do
-        local chunkSize = math.min(bytesToWrite - bytesWritten, self.sectorSize - offset)
-        local chunk = string.sub(data, bytesWritten + 1, bytesWritten + chunkSize)
-
-        local sectorData = self.storage[sector] or string.rep("\0", self.sectorSize)
-
-        sectorData = string.sub(sectorData, 1, offset) .. chunk .. 
-                   string.sub(sectorData, offset + chunkSize + 1)
-        self.storage[sector] = sectorData
-
-        bytesWritten = bytesWritten + chunkSize
-        sector = sector + 1
-        offset = 0
-    end
+    self.storage[address] = data
 
     self.usedSpace = newUsed
-    self.totalWritten = self.totalWritten + (#data / (1024 * 1024))
-    self:triggerEvent("write", address, #data, affectedSectors)
+    self.totalWritten = self.totalWritten + ((#data * 8) / (1024 * 1024))
+    self:triggerEvent("write", address, #data * 8)
 
     if callback then callback(true) end
     return true
@@ -333,7 +267,7 @@ function Typyka:update(dt)
         local request = table.remove(self.accessQueue, 1)
         
         if request.type == "read" then
-            local data = self:read(request.address, request.size, request.callback)
+            local data = self:read(request.address, request.callback)
             return data
         elseif request.type == "write" then
             local success = self:write(request.address, request.data, request.callback)

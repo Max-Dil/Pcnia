@@ -7,10 +7,10 @@ OC = {
 }
 
 --[[
-0x000000 - 0x000FFF   | Загрузочный сектор (MBR)
-0x001000 - 0x00FFFF   | Ядро ОС (до 60KB)
-0x010000 - 0x0FFFFF   | Файловая система (до 15MB)
-0x100000 - ...        | Пользовательские данные
+is_load   | Загрузочный сектор (MBR)
+core  | Ядро ОС (до 60KB)
+files   | Файловая система (до 15MB)
+users - ...        | Пользовательские данные
 ]]
 
 function OC:init(data)
@@ -31,36 +31,24 @@ function OC:init(data)
     MB:attachStorage(HDD)
     MB:addInterrupt("TIMER", {interval = 1})
 
-    HDD:addEventListener("write", function(hdd, address, size)
-        print(string.format("[HDD] Write: addr=%d, size=%d, used=%.2fMB/%.2fMB", 
-            address, size, hdd.usedSpace, hdd.effectiveCapacity))
-    end)
-
-    HDD:addEventListener("read", function(hdd, address, size)
-        print(string.format("[HDD] Read: addr=%d, size=%d", address, size))
-    end)
-
     CPU:addThread(function ()
-        LDA(255); LDX(255); LDY(255)
+        LDA({255, 255, 255})
 
-        write(0, "Load TinyOC")
-        DTX(10, 10, read(0), {A(), X(), Y()}, 2)
+        LDX("Load TinyOC")
+        DTX(10, 10, X(), A(), 2)
 
-        write(0, "by Stimor")
-        DTX(MONITOR.resolution.width - 70 , MONITOR.resolution.height - 10, read(0), {A(), X(), Y()}, 1)
+        LDX("by Stimor")
+        DTX(MONITOR.resolution.width - 70 , MONITOR.resolution.height - 10, X(), A(), 1)
 
-        write(0, "Tiny OC corparation"); LDX(0)
-        DTX(MONITOR.resolution.width/2 - (6 * #read(0)), MONITOR.resolution.height/2 - 10, read(0), {A(), X(), Y()}, 2)
-
-        write(0, nil)
+        LDX("Tiny OC corparation")
+        LDA({255, 0, 255})
+        DTX(MONITOR.resolution.width/2 - (6 * #X()), MONITOR.resolution.height/2 - 10, X(), A(), 2)
     end)
     
     --HDD:loadFromFile()
-    HDD:read(0, 512, function (mbr, bytesRead, err)
-        if err then
-            local bootloader = string.rep("\0", 510)
-            bootloader = bootloader .. "\x55\xAA"
-            HDD:write(0, bootloader, function(success)
+    HDD:read("is_load", function (is_load)
+        if is_load ~= "true" then
+            HDD:write("is_load", "true", function(success)
                 if success then
                     HDD:saveToFile()
                     OC:loadOS()
@@ -73,7 +61,7 @@ function OC:init(data)
 end
 
 function OC:loadOS()
-    HDD:read(0x1000, 1024, function(kernelData, bytesRead, err)
+    HDD:read("core", function()
         self:startOS()
     end)
 end
@@ -87,7 +75,7 @@ function OC:installDefaultOS()
     }
 
     local kernelData = json.encode(kernel)
-    HDD:write(0x1000, kernelData, function(success)
+    HDD:write("core", kernelData, function(success)
         if success then
             HDD:saveToFile()
             print("[OS] Default OS installed successfully")
@@ -103,14 +91,13 @@ function OC:startOS()
         CPU:addThread(function ()
             GPU:clear()
 
-            LDA(255); LDX(255); LDY(255)
-            write(0, "TinyOs")
-            DTX(10, 10, read(0), {A(), X(), Y()}, 2)
-            write(0, nil)
+            LDA({255, 255, 255})
+            LDX("TinyOS")
+            DTX(10, 10, X(), A(), 2)
         end)
     end
-    HDD:read(0x1000, 1024, function(kernelData, bytesRead, err)
-        kernelData = string.gsub(kernelData, "\0", "")
+
+    HDD:read("core", function(kernelData)
         if kernelData == '' then
             print("[OS] Error: Invalid kernel data")
             self:installDefaultOS()
