@@ -52,6 +52,7 @@ end
 function Huga:init(gpu)
     self.gpu = gpu
     self:clear()
+    self.imageData = love.image.newImageData(self.resolution.width, self.resolution.height)
     return self
 end
 
@@ -105,17 +106,17 @@ function Huga:draw()
     local scaleY = love.graphics.getHeight() / self.resolution.height
     local scale = math.min(scaleX, scaleY)
 
-    local imageData = love.image.newImageData(self.resolution.width, self.resolution.height)
     for y = 1, self.resolution.height do
         for x = 1, self.resolution.width do
             local color = self.pixels[y][x] or {0, 0, 0}
             local r, g, b = self:applyColorEffects(color[1], color[2], color[3])
-            imageData:setPixel(x-1, y-1, r/255, g/255, b/255, 1)
+            self.imageData:setPixel(x-1, y-1, r/255, g/255, b/255, 1)
         end
     end
-    
-    local image = love.graphics.newImage(imageData)
+
+    local image = love.graphics.newImage(self.imageData)
     love.graphics.draw(image, 0, 0, 0, scale, scale)
+    image:release()
 
     if self.brightness < 0.3 or self.backlightLevel < 0.3 then
         love.graphics.setColor(0, 0, 0, 1 - (self.brightness * self.backlightLevel)/0.3)

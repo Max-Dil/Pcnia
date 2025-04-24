@@ -94,7 +94,7 @@ function love.load()
     -- HDD = Typyka:init(MB)
     -- MB:attachStorage(HDD)
 
---     -- Тестирование HDD
+    -- Тестирование HDD
 -- HDD:addEventListener("write", function(hdd, address, size)
 --     print(string.format("[HDD] Write: addr=%d, size=%d, used=%.2fMB/%.2fMB", 
 --         address, size, hdd.usedSpace, hdd.effectiveCapacity))
@@ -139,14 +139,14 @@ function love.update(dt)
 end
 
 -- function love.update(dt)
---     PSU:update(dt)
---     MB:update(dt)
---     RAM:update(dt)
---     Cooler:update(dt)
---     Processor:update(dt)
---     GPU:update(dt)
---     MONITOR:update(dt)
---     HDD:update(dt)
+    -- PSU:update(dt)
+    -- MB:update(dt)
+    -- RAM:update(dt)
+    -- Cooler:update(dt)
+    -- Processor:update(dt)
+    -- GPU:update(dt)
+    -- MONITOR:update(dt)
+    -- HDD:update(dt)
 
 --     if love.keyboard.isDown("1") then
 --         createAnimatedSquare(math.random(0, 400), math.random(0, 300))
@@ -179,9 +179,9 @@ function love.draw()
         info.threads, info.autoBoost and "ON" or "OFF"), 10, 190)
     love.graphics.print(string.format("Thermal status: %s", 
         info.thermalThrottle and "THROTTLING" or "NORMAL"), 10, 210)
+    info = nil
 
     love.graphics.print("Controls: 1 - add random process, 2 - remove process, B - toggle auto-boost", 10, 240)
-    love.graphics.print("Processes change automatically every 3 seconds", 10, 260)
 
     love.graphics.print(string.format("Motherboard: %s (BIOS %s)", MB.model, MB.bios.version), 300, 10)
     love.graphics.print(string.format("Clock: %.1f MHz (Stability: %.0f%%)", 
@@ -197,6 +197,7 @@ function love.draw()
     love.graphics.print(string.format("+12V: %.1fA | +5V: %.1fA | +3.3V: %.1fA", 
         psuInfo.rails["+12V"], psuInfo.rails["+5V"], psuInfo.rails["+3.3V"]), 10, 400)
         love.graphics.print(string.format("RAM Power: %.1fW", RAM:getPowerConsumption()), 10, 420)
+        psuInfo = nil
 
         local coolerInfo = Cooler:getInfo()
     love.graphics.print(string.format("Cooler: %s (%.1f°C)", coolerInfo.model, coolerInfo.temperature), 300, 70)
@@ -205,12 +206,14 @@ function love.draw()
     love.graphics.print(string.format("Noise: %.1f dB, Efficiency: %.1f%%", 
         coolerInfo.noiseLevel, coolerInfo.efficiency), 300, 110)
     love.graphics.print(string.format("Cooling power: %.1f W/°C", coolerInfo.coolingPower), 300, 130)
+    coolerInfo = nil
 
     local ramInfo = RAM:getInfo()
     love.graphics.print(string.format("RAM: %s %dMB", ramInfo.model, ramInfo.capacity), 300, 170)
     love.graphics.print(string.format("Freq: %dMHz, Timings: %s", ramInfo.frequency, ramInfo.timings), 300, 190)
     love.graphics.print(string.format("Usage: %.1f%%, Temp: %.1f°C", ramInfo.utilization, ramInfo.temperature), 300, 210)
     love.graphics.print(string.format("Power: %.1fW, Errors: %d", ramInfo.powerUsage, ramInfo.errors), 300, 230)
+    ramInfo = nil
 
     local gpuInfo = GPU:getInfo()
     love.graphics.print("GPU: "..gpuInfo.model, 300, 270)
@@ -219,6 +222,7 @@ function love.draw()
     love.graphics.print("Power: "..gpuInfo.power, 300, 330)
     love.graphics.print("Utilization: "..gpuInfo.utilization, 300, 350)
     love.graphics.print("FPS: "..gpuInfo.fps, 300, 370)
+    gpuInfo = nil
 
     local hddInfo = HDD:getInfo()
 love.graphics.print(string.format("HDD: %s (%.1f°C)", hddInfo.model, hddInfo.temperature), 300, 390)
@@ -228,4 +232,6 @@ love.graphics.print(string.format("Speed: R:%.1f/W:%.1f MB/s",
     hddInfo.readSpeed, hddInfo.writeSpeed), 300, 430)
 love.graphics.print(string.format("Power: %.1fW, State: %s", 
     hddInfo.powerUsage, hddInfo.isSpinning and "ACTIVE: IDLE"), 300, 450)
+    hddInfo = nil
+    return
 end

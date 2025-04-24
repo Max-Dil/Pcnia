@@ -190,7 +190,8 @@ function Processor:addThread(func)
             read = function(addr) coroutine.yield() return self.motherboard:readMemory(addr) end,
             write = function(addr, value) coroutine.yield() return self.motherboard:writeMemory(addr, value) end,
 
-            print = function (...) coroutine.yield() print(...) end
+            print = function (...) coroutine.yield() print(...) end,
+            pcall = function (...) coroutine.yield() return pcall(...) end
         }
 
         setmetatable(env, {__index = _G})
