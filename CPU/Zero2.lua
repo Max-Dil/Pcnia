@@ -41,70 +41,87 @@ function ProcessorCore:updatePerformanceFactor(cpuLoad, thermalFactor)
 end
 
 function ProcessorCore:LDA(value)
+    self:applyLoadDelay()
     self.registers.A = value
 end
 
 function ProcessorCore:STA(addr)
+    self:applyLoadDelay()
     self.motherboard:writeMemory(addr, self.registers.A)
 end
 
 function ProcessorCore:LDX(value)
+    self:applyLoadDelay()
     self.registers.X = value
 end
 
 function ProcessorCore:STX(addr)
+    self:applyLoadDelay()
     self.motherboard:writeMemory(addr, self.registers.X)
 end
 
 function ProcessorCore:LDY(value)
+    self:applyLoadDelay()
     self.registers.Y = value
 end
 
 function ProcessorCore:STY(addr)
+    self:applyLoadDelay()
     self.motherboard:writeMemory(addr, self.registers.Y)
 end
 
 function ProcessorCore:ADD(a, b)
+    self:applyLoadDelay()
     return (a or self.registers.A) + (b or 0)
 end
 
 function ProcessorCore:SUB(a, b)
+    self:applyLoadDelay()
     return (a or self.registers.A) - (b or 0)
 end
 
 function ProcessorCore:MUL(a, b)
+    self:applyLoadDelay()
     return (a or self.registers.A) * (b or 1)
 end
 
 function ProcessorCore:DIV(a, b)
+    self:applyLoadDelay()
     return (a or self.registers.A) / (b or 1)
 end
 
 function ProcessorCore:AND(a, b)
+    self:applyLoadDelay()
     return bit.band(a or self.registers.A, b or 0)
 end
 
 function ProcessorCore:OR(a, b)
+    self:applyLoadDelay()
     return bit.bor(a or self.registers.A, b or 0)
 end
 
 function ProcessorCore:XOR(a, b)
+    self:applyLoadDelay()
     return bit.bxor(a or self.registers.A, b or 0)
 end
 
 function ProcessorCore:NOT(a)
+    self:applyLoadDelay()
     return bit.bnot(a or self.registers.A)
 end
 
 function ProcessorCore:SHL(a, bits)
+    self:applyLoadDelay()
     return bit.lshift(a or self.registers.A, bits or 1)
 end
 
 function ProcessorCore:SHR(a, bits)
+    self:applyLoadDelay()
     return bit.rshift(a or self.registers.A, bits or 1)
 end
 
 function ProcessorCore:CMP(a, b)
+    self:applyLoadDelay()
     local result = (a or self.registers.A) - (b or 0)
     if result == 0 then
         self.registers.SR = bit.bor(self.registers.SR, 0x02)
@@ -115,28 +132,33 @@ function ProcessorCore:CMP(a, b)
 end
 
 function ProcessorCore:PUSH(value)
+    self:applyLoadDelay()
     self.motherboard:writeMemory(self.registers.SP, value or self.registers.A)
     self.registers.SP = self.registers.SP + 1
 end
 
 function ProcessorCore:POP()
+    self:applyLoadDelay()
     self.registers.SP = self.registers.SP - 1
     return self.motherboard:readMemory(self.registers.SP)
 end
 
 function ProcessorCore:DRW(x, y, r, g, b)
+    self:applyLoadDelay()
     if self.gpu then
         self.gpu:drawPixel(x, y, {r, g, b})
     end
 end
 
 function ProcessorCore:DTX(x, y, text, color, scale)
+    self:applyLoadDelay()
     if self.gpu then
         self.gpu:drawText(x, y, text, color, scale)
     end
 end
 
 function ProcessorCore:SLEEP(seconds)
+    self:applyLoadDelay()
     local start = self.lastTime or love.timer.getTime()
     while (love.timer.getTime() - start) < seconds do
         coroutine.yield()
