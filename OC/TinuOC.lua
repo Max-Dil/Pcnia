@@ -38,6 +38,7 @@ function OC:init(data)
     Cooler = data.cooler:init(data.processor, MB)
     MB:attachCooler(Cooler)
     PSU = data.blockEnergy:init(MB)
+    data.gpu.driver = "Unakoda"
     GPU = data.gpu:init(data.processor)
     MONITOR = data.monitor:init(GPU)
     data.processor:setGPU(GPU)
@@ -247,11 +248,13 @@ function OC:startOS()
                 LDA({255, 255, 255})
                 LDX(kernel.name .. " v" .. kernel.version)
                 DTX(10, 10, X(), A(), 2)
+
+                DRE(50, 50, 200, 150, {255, 255, 255})
             end)
             read(1)()
-            for i = 1, #kernel.auto_load_apps, 1 do
-                OC:loadApp(kernel.auto_load_apps[i])
-            end
+            -- for i = 1, #kernel.auto_load_apps, 1 do
+            --     OC:loadApp(kernel.auto_load_apps[i])
+            -- end
         end)
     end
 
