@@ -332,7 +332,7 @@ function DualCoreProcessor:addThread(func)
         self:updatePowerUsage()
         self:updateCpuLoad()
     end
-    return success
+    return success, co
 end
 
 function DualCoreProcessor:removeThread(index)
@@ -343,6 +343,19 @@ function DualCoreProcessor:removeThread(index)
         table.remove(self.cores[2].threads, core2Index)
     end
     self:updatePowerUsage()
+end
+
+function DualCoreProcessor:searchThread(co)
+    for i = 1, #self.cores[1].threads do
+        if self.cores[1].threads[i] == co then
+            return i
+        end
+    end
+    for i = 1, #self.cores[2].threads do
+        if self.cores[2].threads[i] == co then
+            return i - #self.cores[1].threads
+        end
+    end
 end
 
 function DualCoreProcessor:calculatePotentialPower(numThreads)

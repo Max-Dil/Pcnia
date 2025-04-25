@@ -279,7 +279,7 @@ function Processor:addThread(func)
 
     table.insert(self.threads, co)
     self:updatePowerUsage()
-    return true
+    return true, co
 end
 
 function Processor:calculatePotentialPower(numThreads)
@@ -294,6 +294,14 @@ end
 function Processor:removeThread(index)
     table.remove(self.threads, index)
     self:updatePowerUsage()
+end
+
+function Processor:searchThread(co)
+    for i = 1, #self.threads do
+        if self.threads[i] == co then
+            return i
+        end
+    end
 end
 
 function Processor:updatePowerUsage()

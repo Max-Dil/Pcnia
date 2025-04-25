@@ -1,7 +1,7 @@
 
 
---local Processor = require("CPU.Zero1")
-local Processor = require("CPU.Zero2")
+local Processor = require("CPU.Zero1")
+--local Processor = require("CPU.Zero2")
 local Alpeg1000 = require("MOTHER.Alpeg1000")
 local Enma1 = require("POWER.Enma1")
 local Swipan = require("COOLER.Swipan")
@@ -31,7 +31,9 @@ function love.update(dt)
 end
 
 function love.mousereleased(x, y)
-    -- OC:handleClick(x, y)
+    if OC.mousereleased then
+        OC.mousereleased(x, y)
+    end
 end
 
 function love.draw()
