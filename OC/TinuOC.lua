@@ -19,7 +19,7 @@ apps | приложения
 name | имя программы
 version | версия
 company | компания
-autoLoad | автозагрузка
+autoLoad | автозагрузка каковото скрипта
 scripts {} | скрипты
 main | оснвоной скрипт
 ]]
@@ -36,8 +36,8 @@ function OC:init(data)
     MB = data.mother:init(data.processor)
     CPU:setMotherboard(MB)
     RAM = data.ram:init(MB)
-    Cooler = data.cooler:init(data.processor, MB)
-    MB:attachCooler(Cooler)
+    COOLER = data.cooler:init(data.processor, MB)
+    MB:attachCooler(COOLER)
     PSU = data.blockEnergy:init(MB)
     data.gpu.driver = "Unakoda"
     GPU = data.gpu:init(data.processor)
@@ -87,6 +87,21 @@ function OC:init(data)
     end)
 end
 
+function OC:update(dt)
+    PSU:update(dt)
+    MB:update(dt)
+    RAM:update(dt)
+    COOLER:update(dt)
+    CPU:update(dt)
+    GPU:update(dt)
+    MONITOR:update(dt)
+    HDD:update(dt)
+end
+
+function OC:draw()
+    MONITOR:draw()
+end
+
 -- Приложения --------------------
 function OC:installApp(appData, callback)
     if type(appData) ~= "table" or not appData.name or not appData.main or not appData.scripts then
@@ -96,42 +111,36 @@ function OC:installApp(appData, callback)
 
     local appIndex = "app_" .. appData.name:lower():gsub("[^%w]", "_")
 
-    print("apps/" .. appIndex)
-    HDD:write("apps/" .. appIndex, json.encode(appData), function(success)
-        if success then
-            print("[OS] App '" .. appData.name .. "' installed successfully")
-            if appData.autoLoad then
-                self:addToAutoload(appIndex)
+    HDD:read("apps", function (apps)
+        apps = json.decode(apps) or {}
+        table.insert(apps, appIndex)
+        HDD:write("apps", json.encode(apps), function (success)
+            if not success then
+                print("[OS] Error: Failed to install app '" .. appData.name .. "'")
+                return
             end
-            HDD:saveToFile()
-            callback(true)
-        else
-            print("[OS] Error: Failed to install app '" .. appData.name .. "'")
-        end
+            HDD:write("apps/" .. appIndex, json.encode(appData), function(success)
+                if success then
+                    print("[OS] App '" .. appData.name .. "' installed successfully")
+                    HDD:saveToFile()
+                    if callback then callback(true) end
+                else
+                    print("[OS] Error: Failed to install app '" .. appData.name .. "'")
+                    if callback then callback(false) end
+                end
+            end)
+        end)
     end)
-    
+
     return true
 end
 
-function OC:addToAutoload(appIndex)
-    HDD:read("core", function(kernelData)
-        local kernel = json.decode(kernelData) or {}
-        kernel.auto_load_apps = kernel.auto_load_apps or {}
-
-        for _, v in ipairs(kernel.auto_load_apps) do
-            if v == appIndex then return end
-        end
-
-        table.insert(kernel.auto_load_apps, appIndex)
-        HDD:write("core", json.encode(kernel))
-    end)
-end
-
-function OC:loadApp(appIndex)
+function OC:loadApp(appIndex, callback)
     local apps = RAM:read(0)
     local app = apps[appIndex]
     if app then
         self:runApp(app, appIndex)
+        if callback then callback(app) end
         return
     end
 
@@ -148,7 +157,8 @@ function OC:loadApp(appIndex)
         end
         apps[appIndex] = app
         RAM:write(0, apps)
-        self:runApp(app)
+        self:runApp(app, appIndex)
+        if callback then callback(app) end
     end)
 end
 
@@ -186,6 +196,117 @@ function OC:runAppScript(scriptName, app)
                 __DRE(...)
             end
         end
+
+        local HDD = {
+            read = function(self, ...)
+                HDD:read(...)
+            end,
+            write = function(self, address, ...)
+                if address == "core" or address == "apps" or address == "is_load" then
+                    print("[OC] Error: Permission denied for address: "..address)
+                    return
+                end
+                HDD:write(address, ...)
+            end,
+            getInfo = function()
+                return HDD:getInfo()
+            end,
+            saveToFile = function(self, filename)
+                HDD:saveToFile(filename)
+            end,
+            loadFromFile = function()
+                print("[OC] Error: Permission denied "..loadFromFile)
+            end,
+        }
+
+        local RAM = {
+            read = function(self, address)
+                return RAM:read(address)
+            end,
+            getInfo = function()
+                return RAM:getInfo()
+            end,
+            write = function()
+                print("[OC] Error: Permission denied RAM:write, please used function write(address, data)")
+            end,
+        }
+    
+        local MONITOR = {
+            powerOn = function(self)
+                MONITOR:powerOn()
+            end,
+            powerOff = function(self)
+                MONITOR:powerOff()
+            end,
+            getInfo = function(self)
+                return MONITOR:getInfo()
+            end,
+            applyColorEffects = function(self, r, g, b)
+                MONITOR:applyColorEffects(r, g, b)
+            end,
+            setBacklight = function(self, level)
+                MONITOR:setBacklight(level)
+            end,
+            setContrast = function(self, level)
+                MONITOR:setContrast(level)
+            end,
+            setBrightness = function(self, level)
+                MONITOR:setBrightness(level)
+            end,
+            resolution = MONITOR.resolution,
+            colorDepth = MONITOR.colorDepth,
+        }
+
+        local PSU = {
+            getInfo = function()
+                return PSU:getInfo()
+            end
+        }
+
+        local COOLER = {
+            setManualRPM = function(self, rpm)
+                COOLER:setManualRPM(rpm)
+            end,
+            getInfo = function(self)
+                return COOLER:getInfo()
+            end
+        }
+
+        local MB = {}
+
+        local GPU = {
+            clear = function(self)
+                GPU:clear()
+            end,
+            getCore = function(self)
+                return GPU:getCore()
+            end,
+            getInfo = function(self)
+                return GPU:getInfo()
+            end
+        }
+
+
+        local CPU = {
+            getInfo = function(self)
+                return CPU:getInfo()
+            end,
+            countActiveThreads = function(self)
+                return CPU:countActiveThreads()
+            end,
+            getThreadLoads = function(self)
+                return CPU:getThreadLoads()
+            end,
+            searchThread = function(self, co)
+                return CPU:searchThread(co)
+            end,
+            removeThread = function(self, index)
+                CPU:removeThread(index)
+            end,
+            addThread = function(self, func)
+                CPU:addThread(func)
+            end
+        }
     ]=]..
     app.scripts[scriptName]
     local chunk, err = loadstring(script)
@@ -250,7 +371,8 @@ function OC:runApp(app, appIndex)
     end
 
     local __events = {
-        mousereleased = {}
+        mousereleased = {},
+        keypressed = {}
     }
 
     local function handleMouseReleased(x, y)
@@ -269,9 +391,17 @@ function OC:runApp(app, appIndex)
         end
     end
 
+    local function handleKeypressed(key, scancode, isrepeat)
+        for i = 1, #__events.keypressed do
+            __events.keypressed[i](key, scancode, isrepeat)
+        end
+    end
+
     local function addEventHandler(name, listener)
         if name == "mousereleased" then
             table.insert(__events.mousereleased, listener)
+        elseif name == "keypressed" then
+            table.insert(__events.keypressed, listener)
         end
     end
 
@@ -284,8 +414,8 @@ function OC:runApp(app, appIndex)
         name = app.name,
         version = app.version,
         close = function()
-            local count = ram_x - ram_y
-            RAM:free(ram_x, count)
+            local count = ram_y - ram_x
+            RAM:free(ram_x, count + 1)
             for i = 1, #APP.threads do
                 local s = CPU:searchThread(APP.threads[i])
                 if s then
@@ -293,16 +423,54 @@ function OC:runApp(app, appIndex)
                 end
             end
             APP = nil
+            local envApps = RAM:read(2)
+            if envApps[app.name .. ":" .. app.version] then
+                envApps[app.name .. ":" .. app.version] = nil
+            end
+            RAM:write(2, envApps)
             local interface = RAM:read(1)
             interface()
         end,
         hide = function ()
+            OC.mousereleased = nil
+            OC.keypressed = nil
+            APP.frame_buffer = json.encode(GPU.frame_buffer)
             local interface = RAM:read(1)
             interface()
+            for i = 1, #APP.threads do
+                local s = CPU:searchThread(APP.threads[i])
+                if s then
+                    CPU:removeThread(s)
+                end
+            end
             APP.isVisible = false
+            local envApps = RAM:read(2)
+            envApps[app.name .. ":" .. app.version] = APP
+            RAM:write(2, envApps)
         end,
         show = function ()
             OC.mousereleased = handleMouseReleased
+            OC.keypressed = handleKeypressed
+            GPU.frame_buffer = json.decode(APP.frame_buffer)
+            APP.frame_buffer = nil
+            for i = 1, #APP.threads do
+                local success, co = CPU:addThread(function ()end)
+                if success then
+                    local s, core = CPU:searchThread(co)
+                    if core then
+                        CPU.cores[core].threads[s] = APP.threads[i]
+                    elseif s then
+                        CPU.threads[s] = APP.threads[i]
+                    else
+                        print("[OS] Error: App is missing resume processes")
+                    end
+                else
+                    print("[OS] Error: App is missing resume processes")
+                end
+            end
+            local envApps = RAM:read(2)
+            envApps[app.name .. ":" .. app.version] = APP
+            RAM:write(2, envApps)
             APP.isVisible = true
         end,
         isVisible = true
@@ -332,6 +500,8 @@ function OC:runApp(app, appIndex)
     self:runAppScript(app.main, app)
 
     OC.mousereleased = handleMouseReleased
+    OC.keypressed = handleKeypressed
+
 
     print("[OS] Successfully launched App: " .. app.name .. ":" .. app.version)
 end
@@ -342,7 +512,6 @@ function OC:installDefaultOS()
     local kernel = {
         version = self.version,
         name = self.name,
-        auto_load_apps = {},
     }
 
     HDD:write("apps", "{}", function (success)
@@ -350,29 +519,144 @@ function OC:installDefaultOS()
             local kernelData = json.encode(kernel)
             HDD:write("core", kernelData, function(success)
                 if success then
+                    print("[OS] Installing app - Console")
                     OC:installApp({
                         name = "Console",
                         version = "1.0",
                         main = "main",
-                        autoLoad = true,
                         scripts = {
                             main = [[
-                                local width = MONITOR.resolution.width
-                                local height = MONITOR.resolution.height
+                                local logStart = 0
+                                local command = ""
+                                local cursorPos = 1
+                                local cursorBlink = 0
+                                local cursorVisible = true
 
-                                print(read(0))
-                                -- LDA("Loading")
-                                -- DTX(width/2 - 6 * #A(), height/2, A(), {255, 0, 0}, 2)
-                                -- SLEEP(1)
-                                -- DTX(width/2 - 6 * #A(), height/2, A(), {0, 0, 0}, 2)
+                                local CONSOLE_LOG_SIZE = 100
+                                local CONSOLE_LINE_HEIGHT = 16
+                                local CONSOLE_MARGIN = 10
+                    
+                                local function addLog(text, color)
+                                    color = color or {255, 255, 255}
+                                    local logs = read(1) == 0 and {} or read(1)
+                                    table.insert(logs, {text = text, color = color})
+
+                                    if #logs > CONSOLE_LOG_SIZE then
+                                        table.remove(logs, 1)
+                                    end
+                                    
+                                    write(1, logs)
+                                end
+
+                                local function executeCommand(cmd)
+                                    addLog("> " .. cmd, {0, 255, 0})
+
+                                    command = ""
+                                    cursorPos = 1
+
+                                    if cmd == "clear" then
+                                        write(1, {})
+                                    elseif cmd == "help" then
+                                        addLog("Available commands:", {255, 255, 0})
+                                        addLog("clear - Clear console", {200, 200, 200})
+                                        addLog("help - Show this help", {200, 200, 200})
+                                        addLog("ram - Show RAM usage", {200, 200, 200})
+                                        addLog("apps - List installed apps", {200, 200, 200})
+                                    elseif cmd == "ram" then
+                                        local info = RAM:getInfo()
+                                        addLog((info.freeMemory / 1024 / 1024) .. "mb / " .. info.capacity / 1024 / 1024 .. "mb", {200, 200, 200})
+                                    elseif cmd == "apps" then
+                                        HDD:read("apps", function (apps)
+                                            apps = json.decode(apps)
+                                            addLog("Installed apps (" .. #apps .. "):", {255, 255, 0})
+                                            for i, appIndex in ipairs(apps) do
+                                                HDD:read("apps/" .. appIndex, function(appJson)
+                                                    if not appJson or appJson == "" then
+                                                        print("[OS] Error: App not found - " .. appIndex)
+                                                        return
+                                                    end
+
+                                                    local app = json.decode(appJson)
+                                                    if app then
+                                                        addLog(string.format("%d. %s v%s", i, app.name, app.version), {200, 200, 200})
+                                                    end
+                                                end)
+                                            end
+                                        end)
+                                    else
+                                        addLog("Unknown command: " .. cmd, {255, 100, 100})
+                                    end
+                                end
+
+                                addEvent("keypressed", function(key)
+                                    if key == "return" then
+                                        if #command > 0 then
+                                            executeCommand(command)
+                                        end
+                                    elseif key == "backspace" then
+                                        if cursorPos > 1 then
+                                            command = string.sub(command, 1, cursorPos-2) .. string.sub(command, cursorPos)
+                                            cursorPos = cursorPos - 1
+                                        end
+                                    elseif key == "left" then
+                                        if cursorPos > 1 then
+                                            cursorPos = cursorPos - 1
+                                        end
+                                    elseif key == "right" then
+                                        if cursorPos <= #command then
+                                            cursorPos = cursorPos + 1
+                                        end
+                                    elseif key == "home" then
+                                        cursorPos = 1
+                                    elseif key == "end" then
+                                        cursorPos = #command + 1
+                                    elseif #key == 1 then
+                                        command = string.sub(command, 1, cursorPos-1) .. key .. string.sub(command, cursorPos)
+                                        cursorPos = cursorPos + 1
+                                    end
+                                    
+                                    cursorBlink = 0
+                                    cursorVisible = true
+                                end)
+
                                 while true do
-                                    print(900)
-                                    DRE(math.random(1, 390), math.random(1, 290), 10, 10,{255, 255, 255})
-                                    SLEEP(1)
+                                    GPU:clear()
+
+                                    local text = "Console"
+                                    DTX(MONITOR.resolution.width/2 - (#text * 6), 10, text, {255, 255, 255}, 2)
+                                    DRE(MONITOR.resolution.width - 20, 10, 10, 10, {255, 0, 0})
+                                    DRE(MONITOR.resolution.width - 35, 10, 10, 10, {0, 100, 255})
+
+                                    local logs = read(1) == 0 and {} or read(1)
+                                    local startY = CONSOLE_MARGIN
+                                    local visibleLines = math.floor((MONITOR.resolution.height - (CONSOLE_MARGIN * 2 + CONSOLE_LINE_HEIGHT)) / CONSOLE_LINE_HEIGHT)
+                                    logStart = math.max(1, #logs - visibleLines + 1)
+                                    
+                                    for i = logStart, #logs do
+                                        local log = logs[i]
+                                        DTX(CONSOLE_MARGIN, startY, log.text, log.color, 1)
+                                        startY = startY + CONSOLE_LINE_HEIGHT
+                                    end
+                                    
+                                    DTX(CONSOLE_MARGIN, MONITOR.resolution.height - (CONSOLE_MARGIN + CONSOLE_LINE_HEIGHT) + 3, "> " .. command, {255, 255, 255}, 1)
+
+                                    cursorBlink = cursorBlink + 1
+                                    if cursorBlink >= 20 then
+                                        cursorVisible = not cursorVisible
+                                        cursorBlink = 0
+                                    end
+                                    
+                                    if cursorVisible then
+                                        local cursorX = CONSOLE_MARGIN + (#("> " .. string.sub(command, 1, cursorPos-1)) * 6)
+                                        DRE(cursorX, MONITOR.resolution.height - (CONSOLE_MARGIN + CONSOLE_LINE_HEIGHT) + 3, 
+                                            2, (CONSOLE_LINE_HEIGHT - 6), {255, 255, 255})
+                                    end
+                                    
+                                    SLEEP(0.2)
                                 end
                             ]]
                         }
-                    }, function ()
+                    }, function()
                         print("[OS] Default OS installed successfully")
                         HDD:saveToFile()
                         self:startOS()
@@ -399,12 +683,94 @@ function OC:startOS()
                 LDX(kernel.name .. " v" .. kernel.version)
                 DTX(10, 10, X(), A(), 2)
 
-                --DRE(0, 0, 400, 300, {255, 255, 255})
+                -- DRE(0, MONITOR.resolution.height - 20, MONITOR.resolution.width, 20, {50, 50, 50})
+                -- DRE(0, MONITOR.resolution.height - 20, 20, 20, {100, 100 ,100})
+
+                local iconSize = 32
+                local margin = 20
+                local textHeight = 20
+                local startX = margin
+                local startY = margin + 40
+                local itemsPerRow = math.floor((MONITOR.resolution.width - margin * 2) / (iconSize + margin))
+
+                OC.mousereleased = function ()end
+                HDD:read("apps", function (apps)
+                    apps = json.decode(apps)
+
+                    local __apps = {}
+                    for i = 1, #apps, 1 do
+                        local appIndex = apps[i]
+                        HDD:read("apps/" .. appIndex, function(appJson)
+                            if not appJson or appJson == "" then
+                                print("[OS] Error: App not found - " .. appIndex)
+                                return
+                            end
+                            
+                            local app = json.decode(appJson)
+
+                            if app then
+                                __apps[appIndex] = app
+                                local row = math.floor((i-1) / itemsPerRow)
+                                local col = (i-1) % itemsPerRow
+                                local x = startX + col * (iconSize + margin)
+                                local y = startY + row * (iconSize + margin + textHeight)
+
+                                LDA({150, 150, 150})
+                                DRE(x, y, iconSize, iconSize, A())
+
+                                local envApps = RAM:read(2)
+                                local appKey = app.name .. ":" .. app.version
+                                if envApps[appKey] then
+                                    LDA({0, 255, 0})
+                                    DRE(x + iconSize - 5, y + iconSize - 5, 5, 5, A())
+                                end
+
+                                LDA({0,0,0})
+                                LDX("Icon")
+                                DTX(x + iconSize/2 - (#X() * 3), y + iconSize/2 - 3, X(), A(), 1)
+
+                                LDA({255, 255, 255})
+                                LDX(app.name)
+                                DTX(x + iconSize/2 - (#X() * 3), y + iconSize + 5, X(), A(), 1)
+                            end
+
+                            if i == #apps then
+                                OC.mousereleased = function (x, y)
+                                    local scaleX = love.graphics.getWidth() / MONITOR.resolution.width
+                                    local scaleY = love.graphics.getHeight() / MONITOR.resolution.height
+                                    local scale = math.min(scaleX, scaleY)
+                                    x, y = x / scale, y / scale
+                                    for i = 1, #apps do
+                                            local row = math.floor((i-1) / itemsPerRow)
+                                            local col = (i-1) % itemsPerRow
+                                            local iconX = startX + col * (iconSize + margin)
+                                            local iconY = startY + row * (iconSize + margin + textHeight)
+
+                                            if x >= iconX and x <= iconX + iconSize and y >= iconY and y <= iconY + iconSize then
+                                                local appIndex = apps[i]
+                                                if  __apps[appIndex] then
+                                                    local app = __apps[appIndex]
+                                                    if app then
+                                                        local envApps = RAM:read(2)
+                                                        local appKey = app.name .. ":" .. app.version
+                                                        if envApps[appKey] then
+                                                            envApps[appKey].show()
+                                                        else
+                                                            OC:loadApp(appIndex)
+                                                        end
+                                                        return
+                                                    end
+                                                end
+                                                break
+                                            end
+                                    end
+                                end
+                            end
+                        end)
+                    end
+                end)
             end)
             read(1)()
-            for i = 1, #kernel.auto_load_apps, 1 do
-                OC:loadApp(kernel.auto_load_apps[i])
-            end
         end)
     end
 
@@ -422,21 +788,6 @@ function OC:startOS()
             self:installDefaultOS()
         end
     end)
-end
-
-function OC:update(dt)
-    PSU:update(dt)
-    MB:update(dt)
-    RAM:update(dt)
-    Cooler:update(dt)
-    CPU:update(dt)
-    GPU:update(dt)
-    MONITOR:update(dt)
-    HDD:update(dt)
-end
-
-function OC:draw()
-    MONITOR:draw()
 end
 
 return OC

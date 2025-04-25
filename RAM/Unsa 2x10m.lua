@@ -136,7 +136,7 @@ function Unsa2x1GB:free(address, count)
             self._memory[i] = nil
         end
     end
-    
+
     self.usedMemory = self.usedMemory - freed
     self.utilization = self.usedMemory / self.capacity
     
