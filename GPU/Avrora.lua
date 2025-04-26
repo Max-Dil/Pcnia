@@ -287,7 +287,7 @@ function Avrora:getInfo()
                       self.color_depth),
         memory_usage = string.format("%.1f/%d MB", 
                         self.memory_usage, 
-                        self.memory_size * 1024),
+                        self.memory_size),
         architecture = self.architecture,
         cores = string.format("CUDA: %d, RT: %d, TMUs: %d, ROPs: %d", 
                  self.CUDA_cores, 

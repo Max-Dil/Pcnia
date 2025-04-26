@@ -19,7 +19,6 @@ apps | приложения
 name | имя программы
 version | версия
 company | компания
-autoLoad | автозагрузка каковото скрипта
 scripts {} | скрипты
 main | оснвоной скрипт
 ]]
@@ -87,6 +86,55 @@ function OC:init(data)
     end)
 end
 
+function OC:reboot()
+    print("[OS] Rebooting system...")
+
+    local envApps = RAM:read(2)
+    for appKey, app in pairs(envApps) do
+        if app.close then
+            app.close()
+        end
+    end
+
+    RAM:clear()
+
+    if CPU.cores then
+        for core = 1, #CPU.cores, 1 do
+            for i = #CPU.cores[core].threads, 1, -1 do
+                local thread = CPU.cores[core].threads[i]
+                if coroutine.status(thread) ~= "dead" then
+                    table.remove(CPU.cores[core].threads, i)
+                    self.threadLoad[thread] = nil
+                end
+            end
+        end
+    else
+        for i = #CPU.threads, 1, -1 do
+            local thread = CPU.threads[i]
+            if coroutine.status(thread) ~= "dead" then
+                table.remove(CPU.threads, i)
+                self.threadLoad[thread] = nil
+            end
+        end
+    end
+
+    GPU:clear()
+    MONITOR:powerOff()
+    MONITOR:powerOn()
+
+    CPU:addThread(function()
+        SLEEP(1)
+
+        HDD:read("is_load", function(is_load)
+            if is_load == "true" then
+                self:startOS()
+            else
+                self:installDefaultOS()
+            end
+        end)
+    end)
+end
+
 function OC:update(dt)
     PSU:update(dt)
     MB:update(dt)
@@ -103,6 +151,70 @@ function OC:draw()
 end
 
 -- Приложения --------------------
+function OC:uninstallApp(appName, callback)
+    if type(appName) ~= "string" or appName == "" then
+        print("[OS] Error: Invalid app name")
+        if callback then callback(false, "Invalid app name") end
+        return
+    end
+
+    local appIndex = "app_" .. appName:lower():gsub("[^%w]", "_")
+
+    local envApps = RAM:read(2)
+    local runningAppKey = nil
+
+    for key, app in pairs(envApps) do
+        if key:match("^"..appName..":") then
+            runningAppKey = key
+            break
+        end
+    end
+
+    if runningAppKey then
+        envApps[runningAppKey].close()
+        print("[OS] App '"..appName.."' was running and has been closed")
+    end
+
+    HDD:read("apps", function(appsJson)
+        local apps = json.decode(appsJson) or {}
+        local found = false
+        local newApps = {}
+
+        for i, index in ipairs(apps) do
+            if index == appIndex then
+                found = true
+            else
+                table.insert(newApps, index)
+            end
+        end
+
+        if not found then
+            print("[OS] Error: App '"..appName.."' not found")
+            if callback then callback(false, "App not found") end
+            return
+        end
+
+        HDD:write("apps", json.encode(newApps), function(success)
+            if not success then
+                print("[OS] Error: Failed to update apps list")
+                if callback then callback(false, "Failed to update apps list") end
+                return
+            end
+
+            HDD:write("apps/"..appIndex, "", function(success)
+                if success then
+                    print("[OS] App '"..appName.."' uninstalled successfully")
+                    HDD:saveToFile()
+                    if callback then callback(true) end
+                else
+                    print("[OS] Error: Failed to remove app data")
+                    if callback then callback(false, "Failed to remove app data") end
+                end
+            end)
+        end)
+    end)
+end
+
 function OC:installApp(appData, callback)
     if type(appData) ~= "table" or not appData.name or not appData.main or not appData.scripts then
         print("[OS] Error: Invalid app data structure")
@@ -197,7 +309,28 @@ function OC:runAppScript(scriptName, app)
             end
         end
 
+        local OC = {
+            version = OC.version,
+            name = OC.name,
+            uninstallApp = function(self, appName, callback)
+                if appName:lower() == "console" then
+                    print("[OC] Error: Permission denied for uninstall app: "..appName)
+                    callback(false)
+                    return
+                end
+                OC:uninstallApp(appName, callback)
+            end,
+            installApp = function(self, appData, callback)
+                OC:installApp(appData, callback)
+            end,
+            reboot = function()
+                OC:reboot()
+            end
+        }
+
         local HDD = {
+            model = HDD.model,
+            version = HDD.version,
             read = function(self, ...)
                 HDD:read(...)
             end,
@@ -220,6 +353,8 @@ function OC:runAppScript(scriptName, app)
         }
 
         local RAM = {
+            model = RAM.model,
+            version = RAM.version,
             read = function(self, address)
                 return RAM:read(address)
             end,
@@ -232,6 +367,8 @@ function OC:runAppScript(scriptName, app)
         }
     
         local MONITOR = {
+            model = MONITOR.model,
+            version = MONITOR.version,
             powerOn = function(self)
                 MONITOR:powerOn()
             end,
@@ -258,12 +395,16 @@ function OC:runAppScript(scriptName, app)
         }
 
         local PSU = {
+            model = PSU.model,
+            version = PSU.version,
             getInfo = function()
                 return PSU:getInfo()
             end
         }
 
         local COOLER = {
+            model = COOLER.model,
+            version = COOLER.version,
             setManualRPM = function(self, rpm)
                 COOLER:setManualRPM(rpm)
             end,
@@ -272,9 +413,14 @@ function OC:runAppScript(scriptName, app)
             end
         }
 
-        local MB = {}
+        local MB = {
+            model = MB.model,
+            version = MB.version,
+        }
 
         local GPU = {
+            model = GPU.model,
+            version = GPU.version,
             clear = function(self)
                 GPU:clear()
             end,
@@ -288,6 +434,8 @@ function OC:runAppScript(scriptName, app)
 
 
         local CPU = {
+            model = CPU.model,
+            version = CPU.version,
             getInfo = function(self)
                 return CPU:getInfo()
             end,
@@ -560,11 +708,75 @@ function OC:installDefaultOS()
                                         addLog("Available commands:", {255, 255, 0})
                                         addLog("clear - Clear console", {200, 200, 200})
                                         addLog("help - Show this help", {200, 200, 200})
-                                        addLog("ram - Show RAM usage", {200, 200, 200})
                                         addLog("apps - List installed apps", {200, 200, 200})
+                                        addLog("uninstall nameApp - Delete installed app", {200, 200, 200})
+                                        addLog("time - System time", {200, 200, 200})
+                                        addLog("ram - Show RAM information", {200, 200, 200})
+                                        addLog("cpu - Show CPU information", {200, 200, 200})
+                                        addLog("gpu - Show GPU information", {200, 200, 200})
+                                        addLog("psu - Show PSU information", {200, 200, 200})
+                                        addLog("mb - Show MB information", {200, 200, 200})
+                                        addLog("cooler - Show COOLER information", {200, 200, 200})
+                                        addLog("monitor - Show MONITOR information", {200, 200, 200})
+                                        addLog("disk - Show HDD information", {200, 200, 200})
+                                        addLog("shutdown - Completion of work", {200, 200, 200})
+                                        addLog("reboot - Reboot system", {200, 200, 200})
+                                    elseif string.sub(cmd, 1, 10) == "uninstall " then
+                                        local name = string.gsub(cmd, "uninstall ", "")
+                                        OC:uninstallApp(name, function(success)
+                                            if success then
+                                                addLog("[OS] Success: uninstall "..name, {200, 200, 200})
+                                            else
+                                                addLog("[OS] Error: uninstall "..name, {200, 200, 200})
+                                            end
+                                        end)
                                     elseif cmd == "ram" then
                                         local info = RAM:getInfo()
-                                        addLog((info.freeMemory / 1024 / 1024) .. "mb / " .. info.capacity / 1024 / 1024 .. "mb", {200, 200, 200})
+                                        for key, value in pairs(info) do
+                                            addLog(key..": "..tostring(value), {200, 200, 200})
+                                        end
+                                    elseif cmd == "time" then
+                                        addLog("Time: " .. os.time(), {200, 200, 200})
+                                    elseif cmd == "shutdown" then
+                                        os.exit()
+                                    elseif cmd == "reboot" then
+                                        OC:reboot()
+                                    elseif cmd == "cpu" then
+                                        local info = CPU:getInfo()
+                                        for key, value in pairs(info) do
+                                            if type(value == "table") then
+                                                value = json.encode(value)
+                                            end
+                                            addLog(key..": "..tostring(value), {200, 200, 200})
+                                        end
+                                    elseif cmd == "gpu" then
+                                        local info = GPU:getInfo()
+                                        for key, value in pairs(info) do
+                                            addLog(key..": "..tostring(value), {200, 200, 200})
+                                        end
+                                    elseif cmd == "psu" then
+                                        local info = PSU:getInfo()
+                                        for key, value in pairs(info) do
+                                            addLog(key..": "..tostring(value), {200, 200, 200})
+                                        end
+                                    elseif cmd == "mb" then
+                                        addLog("Model: "..MB.model, {200, 200, 200})
+                                        addLog("Version: "..MB.version, {200, 200, 200})
+                                    elseif cmd == "cooler" then
+                                        local info = COOLER:getInfo()
+                                        for key, value in pairs(info) do
+                                            addLog(key..": "..tostring(value), {200, 200, 200})
+                                        end
+                                    elseif cmd == "monitor" then
+                                        local info = MONITOR:getInfo()
+                                        for key, value in pairs(info) do
+                                            addLog(key..": "..tostring(value), {200, 200, 200})
+                                        end
+                                    elseif cmd == "disk" then
+                                        local info = HDD:getInfo()
+                                        for key, value in pairs(info) do
+                                            addLog(key..": "..tostring(value), {200, 200, 200})
+                                        end
                                     elseif cmd == "apps" then
                                         HDD:read("apps", function (apps)
                                             apps = json.decode(apps)
@@ -583,8 +795,9 @@ function OC:installDefaultOS()
                                                 end)
                                             end
                                         end)
+                                    
                                     else
-                                        addLog("Unknown command: " .. cmd, {255, 100, 100})
+                                        addLog("Unknown command: " .. cmd .. ", 'help' command information.", {255, 100, 100})
                                     end
                                 end
 
@@ -610,6 +823,9 @@ function OC:installDefaultOS()
                                         cursorPos = 1
                                     elseif key == "end" then
                                         cursorPos = #command + 1
+                                    elseif key == "space" then
+                                        command = string.sub(command, 1, cursorPos-1) .. " " .. string.sub(command, cursorPos)
+                                        cursorPos = cursorPos + 1
                                     elseif #key == 1 then
                                         command = string.sub(command, 1, cursorPos-1) .. key .. string.sub(command, cursorPos)
                                         cursorPos = cursorPos + 1

@@ -52,6 +52,24 @@ function Unsa2x1GB:init(motherboard)
     return self
 end
 
+function Unsa2x1GB:clear()
+    local freed = 0
+    for address, value in pairs(self._memory) do
+        freed = freed + self:_getDataSize(value)
+        self._memory[address] = nil
+    end
+
+    self.usedMemory = 0
+    self.utilization = 0
+    self.errors = 0
+    self.currentPower = self.powerUsage.idle
+    self.temperature = math.max(30, self.temperature - 5)
+
+    print(string.format("[%s] Memory cleared, freed %d bytes", self.model, freed))
+
+    return freed
+end
+
 function Unsa2x1GB:_getDataSize(value)
     local t = type(value)
     
