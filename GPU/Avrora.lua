@@ -238,7 +238,7 @@ function Avrora:renderFrame()
     self.utilization.core = math.max(1,math.min(100, changed_pixels/cores))
     self.utilization.memory = memory / 1024 / self.memory_size
     self.memory_usage = memory / 1024
-    self.fps = (60 * (self.currentClockSpeed/self.baseClockSpeed)) / (1 + self.utilization.core/100)
+    self.fps = (60 * (self.currentClockSpeed/self.baseClockSpeed)) * (1 - self.utilization.core/100)
     self.pixel_draw_count = 0
 end
 
