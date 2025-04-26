@@ -8,6 +8,16 @@ local Unakoda = {
 function Unakoda:init(gpu)
     gpu.drawText = Unakoda.drawText
     gpu.drawRectangle = Unakoda.drawRectangle
+    gpu.drawImage = Unakoda.drawImage
+end
+
+function Unakoda:drawImage(x, y, data)
+    for image_x = 1, #data, 1 do
+        for image_y = 1, #data[image_x], 1 do
+            self.pixel_draw_count = self.pixel_draw_count + 1
+            self:drawPixel(x + image_x-1, y + image_y-1, data[image_x][image_y])
+        end
+    end
 end
 
 function Unakoda:drawRectangle(x, y, width, height, color)

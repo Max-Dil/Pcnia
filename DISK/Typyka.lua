@@ -221,6 +221,11 @@ function Typyka:write(address, data, callback)
     return true
 end
 
+function Typyka:getAllStorage()
+    local json = require("json")
+    return json.decode(json.encode(self.storage))
+end
+
 function Typyka:getInfo()
     return {
         model = self.model,

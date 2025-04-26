@@ -70,7 +70,7 @@ function love.draw()
 --         MB.clockGenerator.currentFrequency, MB.clockGenerator.stability*100), 300, 30)
 --     love.graphics.print(string.format("Power: %.1fV (%.1fW)",
 --         MB.powerDelivery.voltage, MB.powerDelivery.voltage * MB.powerDelivery.maxAmperage), 300, 50)
---         local totalPeripheralPower = (Cooler:getPowerConsumption() or 0) + RAM:getPowerConsumption()
+--         local totalPeripheralPower = (COOLER:getPowerConsumption() or 0) + RAM:getPowerConsumption()
 --     love.graphics.print(string.format("Peripherals: %.1fW", totalPeripheralPower), 300, 250)
 
 --         local psuInfo = PSU:getInfo()
@@ -81,7 +81,7 @@ function love.draw()
 --         love.graphics.print(string.format("RAM Power: %.1fW", RAM:getPowerConsumption()), 10, 420)
 --         psuInfo = nil
 
---         local coolerInfo = Cooler:getInfo()
+--         local coolerInfo = COOLER:getInfo()
 --     love.graphics.print(string.format("Cooler: %s (%.1f°C)", coolerInfo.model, coolerInfo.temperature), 300, 70)
 --     love.graphics.print(string.format("Fan: %d/%d RPM (%.1f%%)", 
 --         coolerInfo.rpm, coolerInfo.maxRPM, (coolerInfo.rpm/coolerInfo.maxRPM)*100), 300, 90)
@@ -91,9 +91,9 @@ function love.draw()
 --     coolerInfo = nil
 
 --     local ramInfo = RAM:getInfo()
---     love.graphics.print(string.format("RAM: %s %dMB", ramInfo.model, ramInfo.capacity), 300, 170)
+--     love.graphics.print(string.format("RAM: %s %dMB", ramInfo.model, ramInfo.capacity/1024/1024), 300, 170)
 --     love.graphics.print(string.format("Freq: %dMHz, Timings: %s", ramInfo.frequency, ramInfo.timings), 300, 190)
---     love.graphics.print(string.format("Usage: %.1f%%, Temp: %.1f°C, RAM: %d", ramInfo.utilization, ramInfo.temperature, ramInfo.freeMemory / 1024), 300, 210)
+--     love.graphics.print(string.format("Usage: %.1f%%, Temp: %.1f°C, RAM: %d", -ramInfo.utilization, ramInfo.temperature, ramInfo.freeMemory / 1024), 300, 210)
 --     love.graphics.print(string.format("Power: %.1fW, Errors: %d", ramInfo.powerUsage, ramInfo.errors), 300, 230)
 --     ramInfo = nil
 

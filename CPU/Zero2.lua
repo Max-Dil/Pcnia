@@ -149,7 +149,6 @@ function ProcessorCore:DRW(x, y, r, g, b)
         self.gpu:drawPixel(x, y, {r, g, b})
     end
 end
-
 function ProcessorCore:DTX(x, y, text, color, scale)
     self:applyLoadDelay()
     if self.gpu then
@@ -161,13 +160,23 @@ function ProcessorCore:DTX(x, y, text, color, scale)
         end
     end
 end
-
 function ProcessorCore:DRE(x, y, width, height, color)
     self:applyLoadDelay()
     if self.gpu then
         if self.gpu then
             if self.gpu.driver == "Unakoda" then
                 self.gpu:drawRectangle(x, y, width, height, color)
+            else
+            end
+        end
+    end
+end
+function ProcessorCore:DRM(x, y, data)
+    self:applyLoadDelay()
+    if self.gpu then
+        if self.gpu then
+            if self.gpu.driver == "Unakoda" then
+                self.gpu:drawImage(x, y, data)
             else
             end
         end
@@ -207,6 +216,7 @@ function ProcessorCore:addThread(func)
             DRW = function(x, y, r, g, b) coroutine.yield() return self:DRW(x, y, r, g, b) end,
             DTX = function(x, y, text, color, scale) coroutine.yield() return self:DTX(x, y, text, color, scale) end,
             DRE = function(x, y, width, height, color) coroutine.yield() return self:DRE(x, y, width, height, color) end,
+            DRM = function(x, y, data) coroutine.yield() return self:DRM(x, y, data) end,
             SLEEP = function(s) return self:SLEEP(s) end,
 
             A = function() coroutine.yield() return self.registers.A end,

@@ -55,7 +55,7 @@ end
 function Unsa2x1GB:clear()
     local freed = 0
     for address, value in pairs(self._memory) do
-        freed = freed + self:_getDataSize(value)
+        freed = freed + self:_getDataSize(value.size)
         self._memory[address] = nil
     end
 
@@ -99,7 +99,11 @@ function Unsa2x1GB:read(address, size)
     self:_simulateBusy(delay)
     
     for i = address, address + size - 1 do
-        table.insert(data, self._memory[i] or 0)
+        if self._memory[i] then
+            table.insert(data, self._memory[i].value or 0)
+        else
+            table.insert(data, 0)
+        end
     end
     
     self.utilization = math.min(1, self.usedMemory / self.capacity)
@@ -114,13 +118,7 @@ function Unsa2x1GB:write(address, ...)
     local totalSize = 0
 
     for i = 1, #values do
-        local size = self:_getDataSize(values[i])
-        totalSize = totalSize + size
-
-        if self._memory[address + i - 1] then
-            local oldSize = self:_getDataSize(self._memory[address + i - 1])
-            self.usedMemory = self.usedMemory - oldSize
-        end
+        totalSize = totalSize + self:_getDataSize(values[i])
     end
 
     if self.usedMemory + totalSize > self.capacity then
@@ -129,13 +127,23 @@ function Unsa2x1GB:write(address, ...)
             self.model, totalSize, self.capacity - self.usedMemory))
         return false
     end
-    
+
+    for i = 1, #values do
+        if self._memory[address + i - 1] then
+            local oldSize = self._memory[address + i - 1].size
+            if oldSize then
+                self.usedMemory = self.usedMemory - oldSize
+            end
+        end
+    end
+
     local delay = self:_calculateLatency()
     self:_simulateBusy(delay)
 
     for i = 1, #values do
-        self._memory[address + i - 1] = values[i]
-        self.usedMemory = self.usedMemory + self:_getDataSize(values[i])
+        local size = self:_getDataSize(values[i])
+        self._memory[address + i - 1] = {value = values[i], size = size}
+        self.usedMemory = self.usedMemory + size
     end
     
     self.utilization = self.usedMemory / self.capacity
@@ -150,13 +158,14 @@ function Unsa2x1GB:free(address, count)
     
     for i = address, address + count - 1 do
         if self._memory[i] then
-            freed = freed + self:_getDataSize(self._memory[i])
+            local size = self:_getDataSize(self._memory[i].value)
+            freed = freed + size
             self._memory[i] = nil
         end
     end
 
-    self.usedMemory = self.usedMemory - freed
-    self.utilization = self.usedMemory / self.capacity
+    self.usedMemory = math.max(0, self.usedMemory - freed)
+    self.utilization = self.usedMemory > 0 and (self.usedMemory / self.capacity) or 0
     
     return freed
 end
