@@ -5,7 +5,7 @@ local temp = {}
 local fileSystem = {
     version = "1.0",
     getTemp = function(self)
-        temp = RAM and RAM:read(0) or {}
+        temp = (RAM:read(0) == 0 and temp or RAM:read(0))
         return temp
     end,
     saveTemp = function(self)
@@ -55,8 +55,10 @@ function fileSystem:init(callback)
     end)
 end
 
-function fileSystem:open(path, mode)
-    path = "files/" .. path
+function fileSystem:open(path, mode, absolute)
+    if not absolute then
+        path = "files/" .. path
+    end
     mode = mode or "w"
     local parts = split(path, "/")
     local fileName = parts[#parts]
@@ -217,18 +219,48 @@ function fileSystem:open(path, mode)
     return file
 end
 
-function fileSystem:getDirFiles(path, callback)
-    path = "files/" .. path
-    local temp = self:getTemp()
-    if temp[path] then
-        callback(temp[path])
-        return nil
+function fileSystem:getDirFiles(path, callback, absolute)
+    if not absolute then
+        path = "files/" .. path
     end
-    HDD:read(path, function (files)
-        files = json.decode(files)
-        temp[path] = files
-        self:saveTemp()
-        callback(files)
+
+    HDD:read(path, function(filesData)
+        local result = {
+            files = {},
+            directories = {}
+        }
+
+        if filesData ~= "" then
+            local success, files = pcall(json.decode, filesData)
+            if success then
+                result.files = files
+            end
+        end
+
+        local pathWithSlash = path .. "/"
+        local pathLen = #pathWithSlash
+        
+        for hddPath in pairs(HDD.storage) do
+            if hddPath:sub(1, pathLen) == pathWithSlash then
+                local remainingPath = hddPath:sub(pathLen + 1)
+                local nextSegment = split(remainingPath, "/")[1]
+
+                if nextSegment and not remainingPath:sub(#nextSegment + 1):find("/") then
+                    local dirData = HDD.storage[hddPath]
+                    local success, decoded = pcall(json.decode, dirData)
+                    if success and type(decoded) == "table" then
+                        result.directories[nextSegment] = true
+                    end
+                end
+            end
+        end
+
+        local dirList = {}
+        for dir in pairs(result.directories) do
+            table.insert(dirList, dir)
+        end
+        result.directories = dirList
+        callback(result.files, result.directories)
     end)
 end
 
@@ -250,9 +282,45 @@ function fileSystem:rmDir(path, callback, absolute)
             callback(false, "Directory not found")
             return
         end
-        HDD.usedSpace = (HDD.usedSpace or 0) - #data * 8
+        HDD.usedSpace = (HDD.usedSpace or 0) - #data
         HDD.storage[path] = nil
         callback(true)
+    end)
+end
+
+function fileSystem:isDirectory(path, callback, absolute)
+    if not absolute then
+        path = "files/" .. path
+    end
+    local temp = self:getTemp()
+
+    local parts = split(path, "/")
+    local lastPart = parts[#parts]
+
+    local hasExtension = #split(lastPart, ".") > 1
+
+    if hasExtension then
+        callback(false)
+        return
+    end
+
+    if temp[path] then
+        callback(type(temp[path]) == "table")
+        return
+    end
+
+    HDD:read(path, function(data)
+        if data == "" then
+            callback(false)
+            return
+        end
+        
+        local success, decoded = pcall(json.decode, data)
+        if success and type(decoded) == "table" then
+            callback(true)
+        else
+            callback(false)
+        end
     end)
 end
 

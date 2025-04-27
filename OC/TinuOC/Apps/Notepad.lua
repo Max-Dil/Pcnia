@@ -1,0 +1,252 @@
+local json = require("json")
+
+local notepadApp = {
+    name = "Notepad",
+    version = "1.2",
+    main = "main",
+    iconText = "TXT",
+    iconTextColor = {255, 255, 255},
+    system = true,
+    scripts = {
+        main = [[
+local textBuffer = ""
+local scrollOffset = 0
+local maxLines = 0
+local lineHeight = 16
+local margin = 10
+local maxLineWidth = math.floor((MONITOR.resolution.width - margin * 2) / 6)
+local fileName = "untitled.txt"
+local statusMessage = ""
+local statusTimer = 0
+local cursorPos = 1
+local cursorVisible = true
+local cursorBlinkTimer = 0
+local cursorLine = 1
+local cursorCol = 1
+
+if read(1) == 0 then
+    write(1, "")
+else
+    textBuffer = read(1)
+end
+
+local function wrapText(text, width)
+    local lines = {}
+    for line in text:gmatch("[^\r\n]+") do
+        while #line > width do
+            table.insert(lines, line:sub(1, width))
+            line = line:sub(width + 1)
+        end
+        table.insert(lines, line)
+    end
+    return lines
+end
+
+local function getCursorPosition()
+    local lines = {}
+    local pos = 1
+    local currentLine = 1
+    local currentCol = 1
+    
+    for i = 1, #textBuffer do
+        if i == cursorPos then
+            return currentLine, currentCol
+        end
+        
+        if textBuffer:sub(i, i) == "\n" then
+            currentLine = currentLine + 1
+            currentCol = 1
+        else
+            currentCol = currentCol + 1
+        end
+    end
+    
+    return currentLine, currentCol
+end
+
+local function updateCursorPosition()
+    cursorLine, cursorCol = getCursorPosition()
+end
+
+local function updateDisplay()
+    GPU:clear()
+
+    LDA({50, 50, 50})
+    DRE(0, 0, MONITOR.resolution.width, 30, A())
+    
+    LDA({255, 255, 255})
+    LDX("Notepad - "..fileName)
+    DTX(10, 10, X(), A(), 1)
+
+    DRE(MONITOR.resolution.width - 20, 10, 10, 10, {255, 0, 0})
+    DRE(MONITOR.resolution.width - 35, 10, 10, 10, {0, 100, 255})
+
+    LDA({40, 40, 40})
+    DRE(0, MONITOR.resolution.height - 20, MONITOR.resolution.width, 20, A())
+    
+    LDX("F1:Save F2:Open F3:New F4:SaveAs")
+    DTX(10, MONITOR.resolution.height - 15, X(), {150, 150, 150}, 1)
+
+    if statusMessage ~= "" and statusTimer > 0 then
+        LDX(statusMessage)
+        DTX(MONITOR.resolution.width/2 - (#X()*3), MONITOR.resolution.height - 40, X(), {0, 255, 0}, 1)
+        statusTimer = statusTimer - 1
+    end
+
+    maxLines = math.floor((MONITOR.resolution.height - 50) / lineHeight)
+
+    local lines = wrapText(textBuffer, maxLineWidth)
+
+    local visibleStart = math.max(1, #lines - maxLines + 1 - scrollOffset)
+    local visibleEnd = math.min(#lines, visibleStart + maxLines - 1)
+
+    for i = visibleStart, visibleEnd do
+        local yPos = 40 + (i - visibleStart) * lineHeight
+        LDX(lines[i])
+        DTX(margin, yPos, X(), {200, 200, 200}, 1)
+    end
+
+    if cursorVisible and cursorLine >= visibleStart and cursorLine <= visibleEnd then
+        local cursorX = margin + (cursorCol - 1) * 6
+        local cursorY = 40 + (cursorLine - visibleStart) * lineHeight
+        DRE(cursorX, cursorY, 2, lineHeight, {255, 255, 255})
+    end
+
+    if #lines > maxLines then
+        local scrollText = string.format("%d/%d", math.min(visibleStart + maxLines - 1, #lines), #lines)
+        LDX(scrollText)
+        DTX(MONITOR.resolution.width - 50, MONITOR.resolution.height - 15, X(), {150, 150, 150}, 1)
+    end
+end
+
+local function showStatus(message, duration)
+    statusMessage = message
+    statusTimer = duration or 60
+end
+
+local function saveFile(path)
+    local file = FILE_SYSTEM:open(path, "w")
+    file:write(textBuffer, function(success)
+        if success then
+            fileName = path:match("([^/]+)$") or path
+            showStatus("Saved successfully: "..fileName, 60)
+        else
+            showStatus("Save failed!", 60)
+        end
+        updateDisplay()
+    end)
+end
+
+local function saveFileAs()
+    openFileDialog(function(file)
+        if file then
+            saveFile(file.path)
+        end
+    end, true)
+end
+
+local function loadFile()
+    openFileDialog(function(file)
+        if file then
+            textBuffer = file.data
+            fileName = file.path:gsub("files/","")
+            write(1, textBuffer)
+            scrollOffset = 0
+            cursorPos = 1
+            updateCursorPosition()
+            showStatus("Loaded: "..fileName, 60)
+            updateDisplay()
+        end
+    end)
+end
+
+local function newFile()
+    textBuffer = ""
+    fileName = "untitled.txt"
+    write(1, textBuffer)
+    scrollOffset = 0
+    cursorPos = 1
+    updateCursorPosition()
+    showStatus("New file created", 60)
+    updateDisplay()
+end
+
+addEvent("keypressed", function(key)
+    if key == "f1" then
+        if fileName == "untitled.txt" then
+            saveFileAs()
+        else
+            saveFile(fileName)
+        end
+    elseif key == "f2" then
+        loadFile()
+    elseif key == "f3" then
+        newFile()
+    elseif key == "f4" then
+        saveFileAs()
+    elseif key == "up" then
+        if cursorLine > 1 then
+            cursorPos = cursorPos - 1
+            while cursorPos > 1 and textBuffer:sub(cursorPos, cursorPos) ~= "\n" do
+                cursorPos = cursorPos - 1
+            end
+            updateCursorPosition()
+        end
+    elseif key == "down" then
+        if cursorLine < #wrapText(textBuffer, maxLineWidth) then
+            cursorPos = cursorPos + 1
+            while cursorPos <= #textBuffer and textBuffer:sub(cursorPos, cursorPos) ~= "\n" do
+                cursorPos = cursorPos + 1
+            end
+            updateCursorPosition()
+        end
+    elseif key == "left" then
+        if cursorPos > 1 then
+            cursorPos = cursorPos - 1
+            updateCursorPosition()
+        end
+    elseif key == "right" then
+        if cursorPos <= #textBuffer then
+            cursorPos = cursorPos + 1
+            updateCursorPosition()
+        end
+    elseif key == "backspace" then
+        if cursorPos > 1 then
+            textBuffer = textBuffer:sub(1, cursorPos-2) .. textBuffer:sub(cursorPos)
+            cursorPos = cursorPos - 1
+            write(1, textBuffer)
+            updateCursorPosition()
+        end
+    elseif key == "return" then
+        textBuffer = textBuffer:sub(1, cursorPos-1) .. "\n" .. textBuffer:sub(cursorPos)
+        cursorPos = cursorPos + 1
+        write(1, textBuffer)
+        updateCursorPosition()
+    elseif #key == 1 then
+        textBuffer = textBuffer:sub(1, cursorPos-1) .. key .. textBuffer:sub(cursorPos)
+        cursorPos = cursorPos + #key
+        write(1, textBuffer)
+        updateCursorPosition()
+    end
+    
+    cursorVisible = true
+    cursorBlinkTimer = 0
+    updateDisplay()
+end)
+
+updateCursorPosition()
+updateDisplay()
+
+while true do
+    SLEEP(0.05)
+    cursorBlinkTimer = cursorBlinkTimer + 1
+    if cursorBlinkTimer >= 20 then  -- Blink every second (20 * 0.05)
+        cursorVisible = not cursorVisible
+        cursorBlinkTimer = 0
+    end
+end
+]]
+    }
+}
+
+return notepadApp

@@ -30,9 +30,21 @@ function love.update(dt)
     OC:update(dt)
 end
 
-function love.mousereleased(x, y)
+function love.mousereleased(x, y, button, isTouch)
     if OC.mousereleased then
-        OC.mousereleased(x, y)
+        OC.mousereleased(x, y, button, isTouch)
+    end
+end
+
+function love.mousepressed(x, y, button, isTouch)
+    if OC.mousepressed then
+        OC.mousepressed(x, y, button, isTouch)
+    end
+end
+
+function love.mousemoved(x, y, dx, dy)
+    if OC.mousemoved then
+        OC.mousemoved(x, y, dx, dy)
     end
 end
 
@@ -90,12 +102,12 @@ function love.draw()
 --     love.graphics.print(string.format("Cooling power: %.1f W/°C", coolerInfo.coolingPower), 300, 130)
 --     coolerInfo = nil
 
---     local ramInfo = RAM:getInfo()
---     love.graphics.print(string.format("RAM: %s %dMB", ramInfo.model, ramInfo.capacity/1024/1024), 300, 170)
---     love.graphics.print(string.format("Freq: %dMHz, Timings: %s", ramInfo.frequency, ramInfo.timings), 300, 190)
---     love.graphics.print(string.format("Usage: %.1f%%, Temp: %.1f°C, RAM: %d", -ramInfo.utilization, ramInfo.temperature, ramInfo.freeMemory / 1024), 300, 210)
---     love.graphics.print(string.format("Power: %.1fW, Errors: %d", ramInfo.powerUsage, ramInfo.errors), 300, 230)
---     ramInfo = nil
+    -- local ramInfo = RAM:getInfo()
+    -- love.graphics.print(string.format("RAM: %s %dMB", ramInfo.model, ramInfo.capacity/1024/1024), 300, 170)
+    -- love.graphics.print(string.format("Freq: %dMHz, Timings: %s", ramInfo.frequency, ramInfo.timings), 300, 190)
+    -- love.graphics.print(string.format("Usage: %.1f%%, Temp: %.1f°C, RAM: %d", -ramInfo.utilization, ramInfo.temperature, ramInfo.freeMemory / 1024), 300, 210)
+    -- love.graphics.print(string.format("Power: %.1fW, Errors: %d", ramInfo.powerUsage, ramInfo.errors), 300, 230)
+    -- ramInfo = nil
 
 --     local gpuInfo = GPU:getInfo()
 --     love.graphics.print("GPU: "..gpuInfo.model, 300, 270)

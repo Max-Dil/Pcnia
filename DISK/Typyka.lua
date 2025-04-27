@@ -172,7 +172,7 @@ function Typyka:read(address, callback)
     local bytesRead = 0
     local data = self.storage[address] or ""
 
-    bytesRead = #data * 8
+    bytesRead = #data
 
     if bytesRead > 0 then
         self.totalRead = self.totalRead + (bytesRead / (1024 * 1024))
@@ -197,8 +197,8 @@ function Typyka:write(address, data, callback)
         return false
     end
 
-    local oldDataSize = self.storage[address] and (#self.storage[address] * 8) or 0
-    local newDataSize = #data * 8
+    local oldDataSize = self.storage[address] and (#self.storage[address]) or 0
+    local newDataSize = #data
     local sizeDifference = newDataSize - oldDataSize
 
     if (self.usedSpace + sizeDifference)/1024/1024 > self.effectiveCapacity then
@@ -382,7 +382,7 @@ function Typyka:loadFromFile(filename)
             if sector then
                 local data = love.data.decode("string", "base64", encodedData)
                 self.storage[sector] = data
-                self.usedSpace = self.usedSpace + #data * 8
+                self.usedSpace = self.usedSpace + #data
             end
         end
     end

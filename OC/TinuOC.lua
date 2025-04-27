@@ -5,6 +5,7 @@ OC = {
     version = "0.1",
     name = "TinyOS",
     is_installing = false,
+    logs = {}
 }
 
 --[[ ----- Ram --------
@@ -39,6 +40,12 @@ main | оснвоной скрипт
 ]]
 
 function OC:init(data)
+    OC.logs = {}
+    local origPrint = print
+    print = function (...)
+        origPrint(...)
+        table.insert(OC.logs,json.encode({...}))
+    end
     CPU = data.processor
     data.processor:init()
     MB = data.mother:init(data.processor)
@@ -71,14 +78,14 @@ function OC:init(data)
         DTX(MONITOR.resolution.width/2 - (6 * #X()), MONITOR.resolution.height/2 - 10, X(), A(), 2)
     end)
 
-    HDD:addEventListener("write", function(hdd, address)
-        print(string.format("[HDD] Write: addr=" .. address .. ", used=%.2fMB/%.2fMB",
-            hdd.usedSpace/1024, hdd.effectiveCapacity))
-    end)
+    -- HDD:addEventListener("write", function(hdd, address)
+    --     print(string.format("[HDD] Write: addr=" .. address .. ", used=%.2fMB/%.2fMB",
+    --         hdd.usedSpace/1024, hdd.effectiveCapacity))
+    -- end)
 
-    HDD:addEventListener("read", function(hdd, address)
-        print(string.format("[HDD] Read: addr=" .. address))
-    end)
+    -- HDD:addEventListener("read", function(hdd, address)
+    --     print(string.format("[HDD] Read: addr=" .. address))
+    -- end)
 
     --HDD:loadFromFile()
     FILE_SYSTEM = require("OC.TinuOC.fileSystem")
@@ -354,6 +361,268 @@ function OC:runAppScript(scriptName, app)
         local addEvent = APP.env.addEvent
         local runScript = APP.env.runScript
 
+local openFileDialog = function(callback)
+    local function split(str, delimiter)
+        local result = {}
+        for part in str:gmatch("[^" .. delimiter .. "]+") do
+            table.insert(result, part)
+        end
+        return result
+    end
+    local fileDialog = {
+        selectedIndex = 1,
+        files = {},
+        directories = {},
+        currentPath = "files",
+        visible = true
+    }
+
+    local originalMouseReleased = OC.mousereleased
+    local originalKeypressed = OC.keypressed
+
+    local drawFileDialog = function()
+        LDA({0, 0, 0, 150})
+        DRE(0, 0, MONITOR.resolution.width, MONITOR.resolution.height, A())
+
+        local dialogWidth = 400
+        local dialogHeight = 300
+        local dialogX = (MONITOR.resolution.width - dialogWidth) / 2
+        local dialogY = (MONITOR.resolution.height - dialogHeight) / 2
+        
+        LDA({50, 50, 50})
+        DRE(dialogX, dialogY, dialogWidth, dialogHeight, A())
+        
+        LDA({255, 255, 255})
+        LDX("Select file - "..fileDialog.currentPath)
+        DTX(dialogX + 10, dialogY + 10, X(), A(), 2)
+
+        local listX = dialogX + 10
+        local listY = dialogY + 40
+        local itemHeight = 20
+        local visibleItems = math.floor((dialogHeight - 80) / itemHeight)
+
+        local allItems = {}
+        for _, dir in ipairs(fileDialog.directories) do table.insert(allItems, dir) end
+        for _, file in ipairs(fileDialog.files) do table.insert(allItems, file) end
+
+        local startIndex = math.max(1, fileDialog.selectedIndex - math.floor(visibleItems/2))
+        startIndex = math.min(startIndex, #allItems - visibleItems + 1)
+        if startIndex < 1 then startIndex = 1 end
+        
+        local endIndex = math.min(startIndex + visibleItems - 1, #allItems)
+
+        for i = startIndex, endIndex do
+            local item = allItems[i]
+            local y = listY + (i - startIndex) * itemHeight
+
+            if i == fileDialog.selectedIndex then
+                LDA({100, 100, 255})
+                DRE(listX, y, dialogWidth - 20, itemHeight, A())
+            end
+
+            if item.isDir then
+                LDA({255, 255, 0})
+                LDX("[DIR]")
+            else
+                LDA({255, 255, 255})
+                LDX("[FILE]")
+            end
+            DTX(listX + 5, y + 5, X(), A(), 1)
+
+            LDX(item.name)
+            DTX(listX + 80, y + 5, X(), A(), 1)
+        end
+
+        LDA({100, 100, 100})
+        DRE(dialogX + 10, dialogY + dialogHeight - 40, 100, 30, A())
+        LDA({255, 255, 255})
+        LDX("Open")
+        DTX(dialogX + 35, dialogY + dialogHeight - 30, X(), A(), 1)
+        
+        LDA({100, 100, 100})
+        DRE(dialogX + 120, dialogY + dialogHeight - 40, 100, 30, A())
+        LDA({255, 255, 255})
+        LDX("Close")
+        DTX(dialogX + 145, dialogY + dialogHeight - 30, X(), A(), 1)
+
+        DTX(dialogWidth - 200, dialogHeight - 15, "backspace - back, return - open", {255, 255, 255}, 1)
+    end
+
+    local function updateFileList()
+        FILE_SYSTEM:getDirFiles(fileDialog.currentPath, function(files, directories)
+            fileDialog.files = {}
+            fileDialog.directories = {}
+
+            if not files then
+                files = {}
+            end
+            if not directories then
+                directories = {}
+            end
+
+            for path, _ in pairs(files) do
+                local fullPath = fileDialog.currentPath.."/"..path
+                table.insert(fileDialog.files, {
+                    name = path,
+                    path = fullPath,
+                    isDir = false
+                })
+            end
+
+            for _, path in pairs(directories) do
+                local fullPath = fileDialog.currentPath.."/"..path
+                table.insert(fileDialog.directories, {
+                    name = path,
+                    path = fullPath,
+                    isDir = true
+                })
+            end
+
+            table.sort(fileDialog.directories, function(a, b) return a.name < b.name end)
+            table.sort(fileDialog.files, function(a, b) return a.name < b.name end)
+            
+            fileDialog.selectedIndex = 1
+            drawFileDialog()
+        end, true)
+    end
+
+    updateFileList()
+
+    OC.mousereleased = function(x, y)
+        local scaleX = love.graphics.getWidth() / MONITOR.resolution.width
+        local scaleY = love.graphics.getHeight() / MONITOR.resolution.height
+        local scale = math.min(scaleX, scaleY)
+        x, y = x / scale, y / scale
+        
+        local dialogWidth = 400
+        local dialogHeight = 300
+        local dialogX = (MONITOR.resolution.width - dialogWidth) / 2
+        local dialogY = (MONITOR.resolution.height - dialogHeight) / 2
+    
+        if x >= dialogX + 10 and x <= dialogX + 110 and
+           y >= dialogY + dialogHeight - 40 and y <= dialogY + dialogHeight - 10 then
+            local allItems = {}
+            for _, dir in ipairs(fileDialog.directories) do table.insert(allItems, dir) end
+            for _, file in ipairs(fileDialog.files) do table.insert(allItems, file) end
+            
+            if #allItems > 0 and fileDialog.selectedIndex >= 1 and fileDialog.selectedIndex <= #allItems then
+                local selected = allItems[fileDialog.selectedIndex]
+                
+                if selected.isDir then
+                    fileDialog.currentPath = selected.path
+                    updateFileList()
+                else
+                    local file = FILE_SYSTEM:open(selected.path, "r", true)
+                    file:read(function(data)
+                        file:close()
+                        
+                        GPU:clear()
+                        OC.mousereleased = originalMouseReleased
+                        OC.keypressed = originalKeypressed
+                        
+                        callback({
+                            path = selected.path,
+                            name = selected.name,
+                            data = data
+                        })
+                    end)
+                    return nil
+                end
+            end
+        elseif x >= dialogX + 120 and x <= dialogX + 220 and
+               y >= dialogY + dialogHeight - 40 and y <= dialogY + dialogHeight - 10 then
+            GPU:clear()
+            OC.mousereleased = originalMouseReleased
+            OC.keypressed = originalKeypressed
+            callback(nil)
+            return nil
+        else
+            local listX = dialogX + 10
+            local listY = dialogY + 40
+            local itemHeight = 20
+            local visibleItems = math.floor((dialogHeight - 80) / itemHeight)
+            
+            if x >= listX and x <= listX + dialogWidth - 20 and
+               y >= listY and y <= listY + visibleItems * itemHeight then
+                
+                local allItems = {}
+                for _, dir in ipairs(fileDialog.directories) do table.insert(allItems, dir) end
+                for _, file in ipairs(fileDialog.files) do table.insert(allItems, file) end
+                
+                local startIndex = math.max(1, fileDialog.selectedIndex - math.floor(visibleItems/2))
+                startIndex = math.min(startIndex, #allItems - visibleItems + 1)
+                if startIndex < 1 then startIndex = 1 end
+                
+                local clickedIndex = startIndex + math.floor((y - listY) / itemHeight)
+                
+                if clickedIndex >= 1 and clickedIndex <= #allItems then
+                    fileDialog.selectedIndex = clickedIndex
+                end
+            end
+        end
+        drawFileDialog()
+    end
+    
+    OC.keypressed = function(key, scancode, isrepeat)
+        local allItems = {}
+        for _, dir in ipairs(fileDialog.directories) do table.insert(allItems, dir) end
+        for _, file in ipairs(fileDialog.files) do table.insert(allItems, file) end
+        
+        if key == "up" then
+            fileDialog.selectedIndex = math.max(1, fileDialog.selectedIndex - 1)
+        elseif key == "down" then
+            fileDialog.selectedIndex = math.min(#allItems, fileDialog.selectedIndex + 1)
+        elseif key == "return" then
+            local selected = allItems[fileDialog.selectedIndex]
+            
+            if selected.isDir then
+                fileDialog.currentPath = selected.path
+                updateFileList()
+            else
+                local file = FILE_SYSTEM:open(selected.path, "r", true)
+                file:read(function(data)
+                    file:close()
+                    
+                    GPU:clear()
+                    OC.mousereleased = originalMouseReleased
+                    OC.keypressed = originalKeypressed
+                    
+                    callback({
+                        path = selected.path,
+                        name = selected.name,
+                        data = data
+                    })
+                end)
+                return nil
+            end
+        elseif key == "escape" then
+            GPU:clear()
+            OC.mousereleased = originalMouseReleased
+            OC.keypressed = originalKeypressed
+            callback(nil)
+            return nil
+        elseif key == "backspace" then
+            local parts = {}
+            for part in fileDialog.currentPath:gmatch("[^/]+") do
+                table.insert(parts, part)
+            end
+            
+            if #parts > 1 then
+                table.remove(parts)
+                fileDialog.currentPath = table.concat(parts, "/")
+                updateFileList()
+            end
+        end
+        drawFileDialog()
+    end
+
+    local s, co = CPU:addThread(function()
+        SLEEP(0.1)
+        drawFileDialog()
+    end)
+    table.insert(APP.threads, co)
+end
+
         local __DRW = DRW
         local DRW = function(...)
             if APP.isVisible then
@@ -372,6 +641,14 @@ function OC:runAppScript(scriptName, app)
         local DRE = function(...)
             if APP.isVisible then
                 __DRE(...)
+            end
+        end
+
+        
+        local __DRM = DRM
+        local DRM = function(...)
+            if APP.isVisible then
+                __DRM(...)
             end
         end
 
@@ -408,7 +685,7 @@ function OC:runAppScript(scriptName, app)
                     return result
                 end
                 local __path = split(path, "/")
-                if __path[1] ~= "Dekstop" then
+                if __path[1] ~= "Dekstop" and __path[1] ~= "Documents" then
                     path = "User/AppData/" .. "]=].. appIndex ..[=[" .. "/" .. path
                 end
 
@@ -423,7 +700,7 @@ function OC:runAppScript(scriptName, app)
                     return result
                 end
                 local __path = split(path, "/")
-                if __path[1] ~= "Dekstop" then
+                if __path[1] ~= "Dekstop" and __path[1] ~= "Documents" then
                     path = "User/AppData/" .. "]=].. appIndex ..[=[" .. "/" .. path
                 end
                 return FILE_SYSTEM:mkDir(path, callback)
@@ -437,7 +714,7 @@ function OC:runAppScript(scriptName, app)
                     return result
                 end
                 local __path = split(path, "/")
-                if __path[1] ~= "Dekstop" then
+                if __path[1] ~= "Dekstop" and __path[1] ~= "Documents" then
                     path = "User/AppData/" .. "]=].. appIndex ..[=[" .. "/" .. path
                 end
                 FILE_SYSTEM:rmDir(path, callback)
@@ -451,7 +728,7 @@ function OC:runAppScript(scriptName, app)
                     return result
                 end
                 local __path = split(path, "/")
-                if __path[1] ~= "Dekstop" then
+                if __path[1] ~= "Dekstop" and __path[1] ~= "Documents" then
                     path = "User/AppData/" .. "]=].. appIndex ..[=[" .. "/" .. path
                 end
                 FILE_SYSTEM:getDirFiles(path, callback)
@@ -615,6 +892,7 @@ function OC:runAppScript(scriptName, app)
         }
     ]=] or "")..
     app.scripts[scriptName]
+
     local chunk, err = loadstring(script)
     if not chunk then
         print("[OS] Error compiling script '" .. scriptName .. "': " .. err)
@@ -678,7 +956,9 @@ function OC:runApp(app, appIndex)
 
     local __events = {
         mousereleased = {},
-        keypressed = {}
+        keypressed = {},
+        mousepressed = {},
+        mousemoved = {}
     }
 
     local function handleMouseReleased(x, y)
@@ -697,6 +977,26 @@ function OC:runApp(app, appIndex)
         end
     end
 
+    local function handleMouseMoved(x, y)
+        local scaleX = love.graphics.getWidth() / MONITOR.resolution.width
+        local scaleY = love.graphics.getHeight() / MONITOR.resolution.height
+        local scale = math.min(scaleX, scaleY)
+        x, y = x / scale, y / scale
+        for i = 1, #__events.mousemoved do
+            __events.mousemoved[i](x, y)
+        end
+    end
+
+    local function handleMousePressed(x, y)
+        local scaleX = love.graphics.getWidth() / MONITOR.resolution.width
+        local scaleY = love.graphics.getHeight() / MONITOR.resolution.height
+        local scale = math.min(scaleX, scaleY)
+        x, y = x / scale, y / scale
+        for i = 1, #__events.mousepressed do
+            __events.mousepressed[i](x, y)
+        end
+    end
+
     local function handleKeypressed(key, scancode, isrepeat)
         for i = 1, #__events.keypressed do
             __events.keypressed[i](key, scancode, isrepeat)
@@ -704,11 +1004,7 @@ function OC:runApp(app, appIndex)
     end
 
     local function addEventHandler(name, listener)
-        if name == "mousereleased" then
-            table.insert(__events.mousereleased, listener)
-        elseif name == "keypressed" then
-            table.insert(__events.keypressed, listener)
-        end
+        table.insert(__events[name], listener)
     end
 
     local runScript = function (name)
@@ -803,11 +1099,13 @@ function OC:runApp(app, appIndex)
         DRE(MONITOR.resolution.width - 20, 10, 10, 10, {255, 0, 0})
         DRE(MONITOR.resolution.width - 35, 10, 10, 10, {0, 100, 255})
     end)
-    self:runAppScript(app.main, app)
 
     OC.mousereleased = handleMouseReleased
     OC.keypressed = handleKeypressed
+    OC.mousepressed = handleMousePressed
+    OC.mousemoved = handleMouseMoved
 
+    self:runAppScript(app.main, app)
 
     print("[OS] Successfully launched App: " .. app.name .. ":" .. app.version)
 end
@@ -866,399 +1164,14 @@ function OC:installDefaultOS()
                                 file = nil
 
                                 print("[OS installer] Installing system apps")
-                                OC:installApp({
-                                    name = "Console",
-                                    version = "1.0",
-                                    main = "main",
-                                    iconText = "CMD",
-                                    iconTextColor = {255, 255, 255},
-                                    icon = json.decode('[[[70,110,200],[68,107,197],[67,106,196],[66,105,195],[65,103,193],[64,102,192],[63,101,191],[62,100,190],[61,98,188],[60,97,187],[59,96,186],[58,95,185],[57,93,183],[56,92,182],[55,91,181],[55,90,180],[54,88,178],[53,87,177],[52,86,176],[51,85,175],[50,83,173],[49,82,172],[48,81,171],[47,80,170],[46,78,168],[45,77,167],[44,76,166],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[59,96,186],[58,95,185],[57,93,183],[56,92,182],[55,91,181],[55,90,180],[54,88,178],[53,87,177],[52,86,176],[51,85,175],[50,83,173],[49,82,172],[48,81,171],[47,80,170],[46,78,168],[45,77,167],[44,76,166],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[59,96,186],[58,95,185],[57,93,183],[56,92,182],[55,91,181],[55,90,180],[54,88,178],[53,87,177],[52,86,176],[51,85,175],[50,83,173],[49,82,172],[48,81,171],[47,80,170],[46,78,168],[45,77,167],[44,76,166],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[59,96,186],[58,95,185],[57,93,183],[56,92,182],[55,91,181],[55,90,180],[54,88,178],[53,87,177],[52,86,176],[51,85,175],[50,83,173],[49,82,172],[48,81,171],[47,80,170],[46,78,168],[45,77,167],[44,76,166],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[180,210,255],[58,95,185],[57,93,183],[56,92,182],[180,210,255],[55,90,180],[54,88,178],[53,87,177],[180,210,255],[51,85,175],[50,83,173],[49,82,172],[180,210,255],[47,80,170],[46,78,168],[45,77,167],[180,210,255],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[255,95,90],[255,95,90],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[180,210,255],[59,96,186],[58,95,185],[57,93,183],[180,210,255],[55,91,181],[55,90,180],[54,88,178],[180,210,255],[52,86,176],[51,85,175],[50,83,173],[180,210,255],[48,81,171],[47,80,170],[46,78,168],[180,210,255],[44,76,166],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[255,95,90],[255,95,90],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[59,96,186],[58,95,185],[180,210,255],[56,92,182],[55,91,181],[55,90,180],[180,210,255],[53,87,177],[52,86,176],[51,85,175],[180,210,255],[49,82,172],[48,81,171],[47,80,170],[180,210,255],[45,77,167],[44,76,166],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[255,95,90],[255,95,90],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[59,96,186],[180,210,255],[57,93,183],[56,92,182],[55,91,181],[180,210,255],[54,88,178],[53,87,177],[52,86,176],[180,210,255],[50,83,173],[49,82,172],[48,81,171],[180,210,255],[46,78,168],[45,77,167],[44,76,166],[180,210,255],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[180,210,255],[58,95,185],[57,93,183],[56,92,182],[180,210,255],[55,90,180],[54,88,178],[53,87,177],[180,210,255],[51,85,175],[50,83,173],[49,82,172],[180,210,255],[47,80,170],[46,78,168],[45,77,167],[180,210,255],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[180,210,255],[59,96,186],[58,95,185],[57,93,183],[180,210,255],[55,91,181],[55,90,180],[54,88,178],[180,210,255],[52,86,176],[51,85,175],[50,83,173],[180,210,255],[48,81,171],[47,80,170],[46,78,168],[180,210,255],[44,76,166],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[59,96,186],[58,95,185],[180,210,255],[56,92,182],[55,91,181],[55,90,180],[180,210,255],[53,87,177],[52,86,176],[51,85,175],[180,210,255],[49,82,172],[48,81,171],[47,80,170],[180,210,255],[45,77,167],[44,76,166],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[90,200,90],[90,200,90],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[59,96,186],[180,210,255],[57,93,183],[56,92,182],[55,91,181],[180,210,255],[54,88,178],[53,87,177],[52,86,176],[180,210,255],[50,83,173],[49,82,172],[48,81,171],[180,210,255],[46,78,168],[45,77,167],[44,76,166],[180,210,255],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[90,200,90],[90,200,90],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[180,210,255],[58,95,185],[57,93,183],[56,92,182],[180,210,255],[55,90,180],[54,88,178],[53,87,177],[180,210,255],[51,85,175],[50,83,173],[49,82,172],[180,210,255],[47,80,170],[46,78,168],[45,77,167],[180,210,255],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[90,200,90],[90,200,90],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[180,210,255],[59,96,186],[58,95,185],[57,93,183],[180,210,255],[55,91,181],[55,90,180],[54,88,178],[180,210,255],[52,86,176],[51,85,175],[50,83,173],[180,210,255],[48,81,171],[47,80,170],[46,78,168],[180,210,255],[44,76,166],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[59,96,186],[58,95,185],[180,210,255],[56,92,182],[55,91,181],[55,90,180],[180,210,255],[53,87,177],[52,86,176],[51,85,175],[180,210,255],[49,82,172],[48,81,171],[47,80,170],[180,210,255],[45,77,167],[44,76,166],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[59,96,186],[180,210,255],[57,93,183],[56,92,182],[55,91,181],[180,210,255],[54,88,178],[53,87,177],[52,86,176],[180,210,255],[50,83,173],[49,82,172],[48,81,171],[180,210,255],[46,78,168],[45,77,167],[44,76,166],[180,210,255],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[180,210,255],[58,95,185],[57,93,183],[56,92,182],[180,210,255],[55,90,180],[54,88,178],[53,87,177],[180,210,255],[51,85,175],[50,83,173],[49,82,172],[180,210,255],[47,80,170],[46,78,168],[45,77,167],[180,210,255],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[180,210,255],[59,96,186],[58,95,185],[57,93,183],[180,210,255],[55,91,181],[55,90,180],[54,88,178],[180,210,255],[52,86,176],[51,85,175],[50,83,173],[180,210,255],[48,81,171],[47,80,170],[46,78,168],[180,210,255],[44,76,166],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[59,96,186],[58,95,185],[180,210,255],[56,92,182],[55,91,181],[55,90,180],[180,210,255],[53,87,177],[52,86,176],[51,85,175],[180,210,255],[49,82,172],[48,81,171],[47,80,170],[180,210,255],[45,77,167],[44,76,166],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[100,140,220],[100,140,220],[100,140,220],[100,140,220],[100,140,220],[100,140,220],[100,140,220],[100,140,220],[100,140,220],[100,140,220],[100,140,220],[100,140,220],[100,140,220],[100,140,220],[100,140,220],[100,140,220],[100,140,220],[100,140,220],[100,140,220],[100,140,220],[100,140,220],[100,140,220],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[180,210,255],[58,95,185],[57,93,183],[56,92,182],[180,210,255],[55,90,180],[54,88,178],[53,87,177],[180,210,255],[51,85,175],[50,83,173],[49,82,172],[180,210,255],[47,80,170],[46,78,168],[45,77,167],[180,210,255],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[180,210,255],[59,96,186],[180,210,255],[57,93,183],[180,210,255],[55,91,181],[55,90,180],[54,88,178],[180,210,255],[52,86,176],[51,85,175],[50,83,173],[180,210,255],[48,81,171],[180,210,255],[46,78,168],[180,210,255],[44,76,166],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[59,96,186],[180,210,255],[180,210,255],[56,92,182],[55,91,181],[55,90,180],[180,210,255],[53,87,177],[52,86,176],[51,85,175],[180,210,255],[49,82,172],[48,81,171],[180,210,255],[180,210,255],[45,77,167],[44,76,166],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[59,96,186],[180,210,255],[57,93,183],[56,92,182],[55,91,181],[180,210,255],[54,88,178],[53,87,177],[52,86,176],[180,210,255],[50,83,173],[49,82,172],[48,81,171],[180,210,255],[46,78,168],[45,77,167],[44,76,166],[180,210,255],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[180,210,255],[180,210,255],[57,93,183],[56,92,182],[180,210,255],[55,90,180],[54,88,178],[53,87,177],[180,210,255],[51,85,175],[50,83,173],[49,82,172],[180,210,255],[180,210,255],[46,78,168],[45,77,167],[180,210,255],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[180,210,255],[59,96,186],[180,210,255],[57,93,183],[180,210,255],[55,91,181],[55,90,180],[54,88,178],[180,210,255],[52,86,176],[51,85,175],[50,83,173],[180,210,255],[48,81,171],[180,210,255],[46,78,168],[180,210,255],[44,76,166],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[59,96,186],[180,210,255],[180,210,255],[56,92,182],[55,91,181],[55,90,180],[180,210,255],[53,87,177],[52,86,176],[51,85,175],[180,210,255],[49,82,172],[48,81,171],[180,210,255],[180,210,255],[45,77,167],[44,76,166],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[59,96,186],[180,210,255],[57,93,183],[56,92,182],[55,91,181],[180,210,255],[54,88,178],[53,87,177],[52,86,176],[180,210,255],[50,83,173],[49,82,172],[48,81,171],[180,210,255],[46,78,168],[45,77,167],[44,76,166],[180,210,255],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[59,96,186],[58,95,185],[57,93,183],[56,92,182],[55,91,181],[55,90,180],[54,88,178],[53,87,177],[52,86,176],[51,85,175],[50,83,173],[49,82,172],[48,81,171],[47,80,170],[46,78,168],[45,77,167],[44,76,166],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[59,96,186],[58,95,185],[57,93,183],[56,92,182],[55,91,181],[55,90,180],[54,88,178],[53,87,177],[52,86,176],[51,85,175],[50,83,173],[49,82,172],[48,81,171],[47,80,170],[46,78,168],[45,77,167],[44,76,166],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[69,108,198],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[30,50,120],[100,140,220],[62,100,190],[61,98,188],[60,97,187],[59,96,186],[58,95,185],[57,93,183],[56,92,182],[55,91,181],[55,90,180],[54,88,178],[53,87,177],[52,86,176],[51,85,175],[50,83,173],[49,82,172],[48,81,171],[47,80,170],[46,78,168],[45,77,167],[44,76,166],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]],[[70,110,200],[68,107,197],[67,106,196],[66,105,195],[65,103,193],[64,102,192],[63,101,191],[62,100,190],[61,98,188],[60,97,187],[59,96,186],[58,95,185],[57,93,183],[56,92,182],[55,91,181],[55,90,180],[54,88,178],[53,87,177],[52,86,176],[51,85,175],[50,83,173],[49,82,172],[48,81,171],[47,80,170],[46,78,168],[45,77,167],[44,76,166],[43,75,165],[42,73,163],[41,72,162],[40,71,161],[40,70,160]]]'),
-                                    system = true,
-                                    scripts = {
-                                        main = [[
-local logStart = 0
-local command = ""
-local cursorPos = 1
-local cursorBlink = 0
-local cursorVisible = true
-            
-local CONSOLE_LOG_SIZE = 100
-local CONSOLE_LINE_HEIGHT = 16
-local CONSOLE_MARGIN = 10
-
-local draw = function()
-    GPU:clear()
-            
-    local text = "Console"
-    DTX(MONITOR.resolution.width/2 - (#text * 6), 10, text, {255, 255, 255}, 2)
-    DRE(MONITOR.resolution.width - 20, 10, 10, 10, {255, 0, 0})
-    DRE(MONITOR.resolution.width - 35, 10, 10, 10, {0, 100, 255})
-            
-    local logs = read(1) == 0 and {} or read(1)
-    local startY = CONSOLE_MARGIN
-    local visibleLines = math.floor((MONITOR.resolution.height - (CONSOLE_MARGIN * 2 + CONSOLE_LINE_HEIGHT)) / CONSOLE_LINE_HEIGHT)
-    logStart = math.max(1, #logs - visibleLines + 1)
-                                                
-    for i = logStart, #logs do
-        local log = logs[i]
-        DTX(CONSOLE_MARGIN, startY, log.text, log.color, 1)
-        startY = startY + CONSOLE_LINE_HEIGHT
-    end
-                                                
-    DTX(CONSOLE_MARGIN, MONITOR.resolution.height - (CONSOLE_MARGIN + CONSOLE_LINE_HEIGHT) + 3, "> " .. command, {255, 255, 255}, 1)
-            
-    cursorBlink = cursorBlink + 1
-    if cursorBlink >= 20 then
-        cursorVisible = not cursorVisible
-        cursorBlink = 0
-    end
-                                                
-    if cursorVisible then
-        local cursorX = CONSOLE_MARGIN + (#("> " .. string.sub(command, 1, cursorPos-1)) * 6)
-        DRE(cursorX, MONITOR.resolution.height - (CONSOLE_MARGIN + CONSOLE_LINE_HEIGHT) + 3, 
-            2, (CONSOLE_LINE_HEIGHT - 6), {255, 255, 255})
-    end
-end
-                                
-local function addLog(text, color)
-    color = color or {255, 255, 255}
-    local logs = read(1) == 0 and {} or read(1)
-    table.insert(logs, {text = text, color = color})
-            
-    if #logs > CONSOLE_LOG_SIZE then
-        table.remove(logs, 1)
-    end
-    
-    write(1, logs)
-    draw()
-end
-            
-local function executeCommand(cmd)
-    addLog("> " .. cmd, {0, 255, 0})
-            
-    command = ""
-    cursorPos = 1
-            
-    if cmd == "clear" then
-        write(1, {})
-    elseif cmd == "help" then
-        addLog("Available commands:", {255, 255, 0})
-        addLog("clear - Clear console", {200, 200, 200})
-        addLog("help - Show this help", {200, 200, 200})
-        addLog("apps - List installed apps", {200, 200, 200})
-        addLog("uninstall nameApp - Delete installed app", {200, 200, 200})
-        addLog("time - System time", {200, 200, 200})
-        addLog("ram, cpu, gpu, psu, mb,", {200, 200, 200})
-        addLog("cooler, monitor, disk,", {200, 200, 200})
-        addLog("shutdown - Completion of work", {200, 200, 200})
-        addLog("reboot - Reboot system", {200, 200, 200})
-    elseif string.sub(cmd, 1, 10) == "uninstall " then
-        local name = string.gsub(cmd, "uninstall ", "")
-        OC:uninstallApp(name, function(success)
-            if success then
-                addLog("[OS] Success: uninstall "..name, {200, 200, 200})
-            else
-                addLog("[OS] Error: uninstall "..name, {200, 200, 200})
-            end
-        end)
-    elseif cmd == "ram" then
-        local info = RAM:getInfo()
-        for key, value in pairs(info) do
-            addLog(key..": "..tostring(value), {200, 200, 200})
-        end
-    elseif cmd == "time" then
-        addLog("Time: " .. os.time(), {200, 200, 200})
-    elseif cmd == "shutdown" then
-        os.exit()
-    elseif cmd == "reboot" then
-        OC:reboot()
-    elseif cmd == "cpu" then
-        local info = CPU:getInfo()
-        for key, value in pairs(info) do
-            if type(value == "table") then
-                value = json.encode(value)
-            end
-            addLog(key..": "..tostring(value), {200, 200, 200})
-        end
-    elseif cmd == "gpu" then
-        local info = GPU:getInfo()
-        for key, value in pairs(info) do
-            addLog(key..": "..tostring(value), {200, 200, 200})
-        end
-    elseif cmd == "psu" then
-        local info = PSU:getInfo()
-        for key, value in pairs(info) do
-            addLog(key..": "..tostring(value), {200, 200, 200})
-        end
-    elseif cmd == "mb" then
-        addLog("Model: "..MB.model, {200, 200, 200})
-        addLog("Version: "..MB.version, {200, 200, 200})
-    elseif cmd == "cooler" then
-        local info = COOLER:getInfo()
-        for key, value in pairs(info) do
-            addLog(key..": "..tostring(value), {200, 200, 200})
-        end
-    elseif cmd == "monitor" then
-        local info = MONITOR:getInfo()
-        for key, value in pairs(info) do
-            addLog(key..": "..tostring(value), {200, 200, 200})
-        end
-    elseif cmd == "disk" then
-        local info = HDD:getInfo()
-        for key, value in pairs(info) do
-            addLog(key..": "..tostring(value), {200, 200, 200})
-        end
-    elseif cmd == "apps" then
-        local file = FILE_SYSTEM:open("Tinu/apps.json", "r")
-        file:read(function (apps)
-            file.close()
-            apps = json.decode(apps)
-            addLog("Installed apps (" .. #apps .. "):", {255, 255, 0})
-            for i, appIndex in ipairs(apps) do
-                file = FILE_SYSTEM:open("User/AppData/"..appIndex.."/app.json", "r")
-                file:read(function(appJson)
-                    file.close()
-                    if not appJson or appJson == "" then
-                        print("[OS] Error: App not found - " .. appIndex)
-                        return
-                    end
-            
-                    local app = json.decode(appJson)
-                    if app then
-                        addLog(string.format("%d. %s v%s", i, app.name, app.version), {200, 200, 200})
-                    end
-                end)
-            end
-        end)
-    
-    else
-        addLog("Unknown command: " .. cmd .. ", 'help' command information.", {255, 100, 100})
-    end
-end
-            
-addEvent("keypressed", function(key)
-    if key == "return" then
-        if #command > 0 then
-            executeCommand(command)
-        end
-    elseif key == "backspace" then
-        if cursorPos > 1 then
-            command = string.sub(command, 1, cursorPos-2) .. string.sub(command, cursorPos)
-            cursorPos = cursorPos - 1
-        end
-    elseif key == "left" then
-        if cursorPos > 1 then
-            cursorPos = cursorPos - 1
-        end
-    elseif key == "right" then
-        if cursorPos <= #command then
-            cursorPos = cursorPos + 1
-        end
-    elseif key == "home" then
-        cursorPos = 1
-    elseif key == "end" then
-        cursorPos = #command + 1
-    elseif key == "space" then
-        command = string.sub(command, 1, cursorPos-1) .. " " .. string.sub(command, cursorPos)
-        cursorPos = cursorPos + 1
-    elseif #key == 1 then
-        command = string.sub(command, 1, cursorPos-1) .. key .. string.sub(command, cursorPos)
-        cursorPos = cursorPos + 1
-    end
-                                                
-    cursorBlink = 0
-    cursorVisible = true
-    draw()
-end)
-            
-draw()
-            
-while true do
-    SLEEP(0.05)
-end
-                                        ]]
-                                    }
-                                }, function()
-                                    OC:installApp({
-                                        name = "Files",
-                                        version = "1.0",
-                                        main = "main",
-                                        iconText = "File",
-                                        icon = json.decode('[[[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[235,187,44],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[235,187,44],[235,187,44],[240,240,240],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[255,207,64],[255,207,64],[255,207,64],[235,187,44],[235,187,44],[235,187,44],[240,240,240],[240,240,240],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[255,207,64],[255,207,64],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[240,240,240],[240,240,240],[240,240,240],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[255,207,64],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[255,207,64],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[235,187,44],[235,187,44],[235,187,44],[235,187,44],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[235,187,44],[235,187,44],[235,187,44],[255,207,64],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[235,187,44],[235,187,44],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[235,187,44],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[255,207,64],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]],[[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240],[240,240,240]]]'),
-                                        system = true,
-                                        scripts = {
-                                            main = [[
-local function displayFiles()
-    GPU:clear()
-                
-    LDA({255, 255, 255})
-    LDX("File Explorer")
-    DTX(10, 10, X(), A(), 2)
-    DRE(MONITOR.resolution.width - 20, 10, 10, 10, {255, 0, 0})
-    DRE(MONITOR.resolution.width - 35, 10, 10, 10, {0, 100, 255})
-    local storage = HDD:getAllStorage()
-    if not storage or type(storage) ~= "table" or next(storage) == nil then
-        LDX("No files found")
-        DTX(MONITOR.resolution.width/2 - (#X() * 6), MONITOR.resolution.height/2, X(), {255, 255, 255}, 2)
-        return
-    end
-    local startX = 20
-    local startY = 50
-    local lineHeight = 20
-    local margin = 10
-    LDX("Files List:")
-    DTX(startX, startY, X(), {255, 255, 255}, 1)
-    APP.fileNames = {}
-    for name in pairs(storage) do
-        table.insert(APP.fileNames, name)
-    end
-    table.sort(APP.fileNames)
-    APP.fileScrollPos = APP.fileScrollPos or 0
-    APP.maxVisibleFiles = math.floor((MONITOR.resolution.height - startY - 50) / lineHeight)
-    APP.filePositions = {}
-    for i = 1, math.min(APP.maxVisibleFiles, #APP.fileNames - APP.fileScrollPos) do
-        local fileName = APP.fileNames[i + APP.fileScrollPos]
-        local yPos = startY + (i * lineHeight)
-        LDX(fileName)
-        DTX(startX + margin, yPos, X(), {200, 200, 200}, 1)
-        APP.filePositions[fileName] = {x = startX + margin, y = yPos, width = #fileName * 6, height = lineHeight}
-    end
-    if #APP.fileNames > APP.maxVisibleFiles then
-        local scrollText = string.format("%d/%d", math.min(APP.fileScrollPos + 1, #APP.fileNames), #APP.fileNames)
-        LDX(scrollText)
-        DTX(MONITOR.resolution.width - 50, MONITOR.resolution.height - 30, X(), {150, 150, 150}, 1)
-        
-        LDX("up/down: Scroll")
-        DTX(10, MONITOR.resolution.height - 30, X(), {150, 150, 150}, 1)
-    end
-end
-local function displayFileContent(fileName, content)
-    GPU:clear()
-    LDA({255, 255, 255})
-    LDX("File Content: " .. fileName)
-    DTX(10, 10, X(), A(), 2)
-    DRE(MONITOR.resolution.width - 20, 10, 10, 10, {255, 0, 0})
-    DRE(MONITOR.resolution.width - 35, 10, 10, 10, {0, 100, 255})
-    local startX = 20
-    local startY = 30
-    local lineHeight = 20
-    local lines = {}
-    write(2, lines)
-    local max_chars_per_line = math.floor((MONITOR.resolution.width - 20) / 6)
-    for line in content:gmatch("[^\r\n]+") do
-        while #line > max_chars_per_line do
-            local chunk = line:sub(1, max_chars_per_line)
-            table.insert(lines, chunk)
-            line = line:sub(max_chars_per_line + 1)
-        end
-        if #line > 0 then
-            table.insert(lines, line)
-        end
-    end
-    APP.scrollPos = 0
-    APP.maxVisibleLines = math.floor((MONITOR.resolution.height - 80) / lineHeight)
-    for i = 1, math.min(APP.maxVisibleLines, #lines - APP.scrollPos) do
-        local yPos = startY + ((i-1) * lineHeight)
-        LDX(lines[i + APP.scrollPos])
-        DTX(startX, yPos, X(), {200, 200, 200}, 1)
-    end
-    LDX("up/down: Scroll  Esc: Exit  R: Refresh")
-    DTX(10, MONITOR.resolution.height - 50, X(), {150, 150, 150}, 1)
-    LDX("Back to Files")
-    DTX(10, MONITOR.resolution.height - 30, X(), {0, 255, 0}, 1)
-    APP.backButton = {x = 10, y = MONITOR.resolution.height - 30, width = #("Back to Files") * 6, height = 20}
-    write(2, lines)
-end
-local is_block_event = false
-addEvent("keypressed", function(key)
-    if is_block_event then
-        return
-    end
-    if key == "escape" then
-        APP.close()
-    elseif key == "r" then
-        write(2, 0)
-        displayFiles()
-    elseif key == "up" or key == "down" then
-        if read(2) ~= 0 then
-            if key == "up" and APP.scrollPos > 0 then
-                APP.scrollPos = APP.scrollPos - 1
-            elseif key == "down" and APP.scrollPos < #read(2) - APP.maxVisibleLines then
-                APP.scrollPos = APP.scrollPos + 1
-            end
-            GPU:clear()
-            LDA({255, 255, 255})
-            LDX("File Content: " .. APP.currentFile)
-            DTX(10, 10, X(), A(), 2)
-            DRE(MONITOR.resolution.width - 20, 10, 10, 10, {255, 0, 0})
-            DRE(MONITOR.resolution.width - 35, 10, 10, 10, {0, 100, 255})
-            local startX = 20
-            local startY = 30
-            local lineHeight = 20
-            for i = 1, math.min(APP.maxVisibleLines, #read(2) - APP.scrollPos) do
-                local yPos = startY + ((i-1) * lineHeight)
-                LDX(read(2)[i + APP.scrollPos])
-                DTX(startX, yPos, X(), {200, 200, 200}, 1)
-            end
-            LDX("up/down: Scroll  Esc: Exit  R: Refresh")
-            DTX(10, MONITOR.resolution.height - 50, X(), {150, 150, 150}, 1)
-            LDX("Back to Files")
-            DTX(10, MONITOR.resolution.height - 30, X(), {0, 255, 0}, 1)
-        else
-            if key == "up" and APP.fileScrollPos > 0 then
-                APP.fileScrollPos = APP.fileScrollPos - 1
-            elseif key == "down" and APP.fileScrollPos < #APP.fileNames - APP.maxVisibleFiles then
-                APP.fileScrollPos = APP.fileScrollPos + 1
-            end
-            displayFiles()
-        end
-    end
-end)
-addEvent("mousereleased", function(x, y)
-    if is_block_event then
-        return
-    end
-    if APP.backButton and x >= APP.backButton.x and x <= APP.backButton.x + APP.backButton.width and
-       y >= APP.backButton.y and y <= APP.backButton.y + APP.backButton.height then
-        write(2, 0)
-        displayFiles()
-        return
-    end
-    for fileName, pos in pairs(APP.filePositions) do
-        if x >= pos.x and x <= pos.x + pos.width and y >= pos.y and y <= pos.y + pos.height then
-            GPU:clear()
-            LDX("Loadind content...")
-            DTX(MONITOR.resolution.width/2 - #X() * 4, MONITOR.resolution.height/2, X(), {255, 255, 255})
-            is_block_event = true
-            HDD:read(fileName, function(content)
-                is_block_event = false
-                APP.currentFile = fileName
-                displayFileContent(fileName, content)
-                return
-            end)
-        end
-    end
-end)
-APP.filePositions = {}
-APP.backButton = nil
-write(2, 0) -- lines
-APP.scrollPos = 0
-APP.maxVisibleLines = 0
-APP.fileNames = {}
-APP.fileScrollPos = 0
-APP.maxVisibleFiles = 0
-APP.currentFile = ""
-displayFiles()
-while true do
-    SLEEP(0.05)
-end
-                                            ]]
-                                        }
-                                    }, function()
-                                        OC.is_installing = false
-                                        print("[OS] Default OS installed successfully")
-                                        HDD:saveToFile()
-                                        self:startOS()
+                                OC:installApp(require("OC.TinuOC.Apps.Console"), function()
+                                    OC:installApp(require("OC.TinuOC.Apps.Files"), function()
+                                        OC:installApp(require("OC.TinuOC.Apps.Notepad"), function()
+                                            OC.is_installing = false
+                                            print("[OS] Default OS installed successfully")
+                                            HDD:saveToFile()
+                                            self:startOS()
+                                        end)
                                     end)
                                 end)
                             end)
