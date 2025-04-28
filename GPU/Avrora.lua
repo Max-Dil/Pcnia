@@ -51,7 +51,7 @@ local Avrora = {
         power = 0,
     },
 
-    resolution = {width = 640, height = 480},
+    resolution = {width = 400, height = 300},
     color_depth = 32,
     fps = 0,
     frame_buffer = {},
@@ -95,6 +95,13 @@ function Avrora:init(cpu)
 end
 
 function Avrora:initFrameBuffer()
+    for y = 1, #(self.frame_buffer or {}) do
+        for x = 1, self.frame_buffer[y], 1 do
+            self.frame_buffer[y][x] = nil
+            self.frame_buffer[y] = nil
+        end
+    end
+
     self.frame_buffer = {}
     for y = 1, self.resolution.height do
         self.frame_buffer[y] = {}
@@ -114,6 +121,8 @@ function Avrora:setResolution(width, height)
     self.resolution.width = width
     self.resolution.height = height
     self:initFrameBuffer()
+
+    collectgarbage("collect")
     return true
 end
 
@@ -217,6 +226,8 @@ function Avrora:clear()
     end
     self.pixel_draw_count = changed_pixels
     copyBuffer()
+
+    collectgarbage("collect")
 end
 
 -- for y = 1, self.resolution.height do

@@ -1,7 +1,7 @@
 --love.window.setMode(400, 300)
 
-local Processor = require("CPU.Zero1")
---local Processor = require("CPU.Zero2")
+--local Processor = require("CPU.Zero1")
+local Processor = require("CPU.Zero2")
 local Alpeg1000 = require("MOTHER.Alpeg1000")
 local Enma1 = require("POWER.Enma1")
 --local Enma1 = require("POWER.Enma2")
@@ -65,6 +65,7 @@ function love.draw()
     love.graphics.translate(300, 200)
 
     love.graphics.print(love.timer.getFPS(), 0, 0)
+    love.graphics.print("Memory usage: " .. collectgarbage("count") .. " KB", 10, 10)
 
     local info = Processor:getInfo()
     love.graphics.print(string.format("Frequency: %d/%d MHz (max: %d, min: %d)", 

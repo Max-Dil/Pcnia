@@ -66,6 +66,8 @@ function OC:init(data)
     MB:attachStorage(HDD)
     MB:addInterrupt("TIMER", {interval = 1})
 
+    GPU:setResolution(MONITOR.resolution.width, MONITOR.resolution.height)
+
     CPU.updateComponents = function (dt)
         GPU:update(dt)
         RAM:update(dt)

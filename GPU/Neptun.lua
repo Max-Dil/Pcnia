@@ -6,13 +6,13 @@
 ]]
 local Neptun = {
     model = "Neptun GTX",
-    version = "1.0",
+    version = "1.1",
     manufacturer = "StimorGPU",
     architecture = "NATS",
 
     -- Память
     MEMORY = {},
-    memory_size = 500,        -- MB
+    memory_size = 100,        -- MB
     memory_type = "GDDR2",
     memory_bus_width = 16,
     memory_bandwidth = 0.2, -- GB/s
@@ -52,8 +52,8 @@ local Neptun = {
         power = 0,
     },
 
-    resolution = {width = 1960, height = 1280},
-    color_depth = 32,
+    resolution = {width = 400, height = 300},
+    color_depth = 16,
     fps = 0,
     frame_buffer = {},
     frame_time = 0,
@@ -84,6 +84,16 @@ function Neptun:init(cpu)
 end
 
 function Neptun:initFrameBuffer()
+    for y = 1, #(self.frame_buffer or {}) do
+        for x = 1, self.frame_buffer[y], 1 do
+            self.frame_buffer[y][x] = nil
+            self.frame_buffer[y] = nil
+        end
+    end
+    for y = 1, #(self.back_buffer or {}) do
+        self.back_buffer[y] = nil
+    end
+
     self.frame_buffer = {}
     self.back_buffer = {}
     for y = 1, self.resolution.height do
@@ -103,6 +113,8 @@ function Neptun:setResolution(width, height)
     self.resolution.width = width
     self.resolution.height = height
     self:initFrameBuffer()
+
+    collectgarbage("collect")
     return true
 end
 
@@ -196,27 +208,15 @@ end
 
 function Neptun:clear()
     self.back_buffer = {}
-    local changed_pixels = 0
     for y = 1, self.resolution.height do
+        self.frame_buffer[y] = {}
         for x = 1, self.resolution.width do
-            if self.frame_buffer[y][x][1] ~= 0 or self.frame_buffer[y][x][2] ~= 0 or self.frame_buffer[y][x][3] ~= 0 then
-                changed_pixels = changed_pixels + 1
-                self.frame_buffer[y][x] = {0, 0, 0}
-            end
+            self.frame_buffer[y][x] = {0, 0, 0}
         end
     end
-    self.pixel_draw_count = changed_pixels
-    self.memory_usage = 0
-end
 
--- for y = 1, self.resolution.height do
---     for x = 1, self.resolution.width do
---         if math.random() < 0.5 then
---             self.frame_buffer[y][x] = {math.random(0, 255), math.random(0, 255), math.random(0, 255)}
---             self.pixel_draw_count = self.pixel_draw_count + 1
---         end
---     end
--- end
+    collectgarbage("collect")
+end
 
 function Neptun:getCore()
     return Neptun.CUDA_cores + (Neptun.RT_cores * 0.8) + (Neptun.TMUs * 0.6) + (Neptun.ROPs * 0.4)
@@ -224,22 +224,21 @@ end
 
 local cores = Neptun:getCore()
 function Neptun:renderFrame()
+    local pixels_to_render = self.back_buffer
     local changed_pixels = self.pixel_draw_count
 
-    for i =  1, #self.back_buffer do
-        self.frame_buffer[self.back_buffer[i][2]][self.back_buffer[i][1]] = self.back_buffer[i][3]
-        self.memory_usage = self.memory_usage + 85
+    for i =  1, #pixels_to_render do
+        self.frame_buffer[pixels_to_render[i][2]][pixels_to_render[i][1]] = pixels_to_render[i][3]
         changed_pixels = changed_pixels + 1
-        if self.back_buffer[i][3][1] == 0 and self.back_buffer[i][3][2] == 0 and self.back_buffer[i][3][3] == 0 then
-            self.memory_usage = self.memory_usage - 85
-        end
-        self.back_buffer[i] = nil
-        if self.memory_usage / 1024 / self.memory_size > 100 then
-            break
-        end
+        pixels_to_render[i] = nil
     end
     self.pixel_draw_count = changed_pixels
+    pixels_to_render = {}
 
+    self.memory_usage = 4 * changed_pixels
+    if self.memory_usage / 1024 / self.memory_size > 100 then
+        error("[Neptun] no memory free")
+    end
 
     self.utilization.core = math.max(1,math.min(100, changed_pixels/cores))
     self.utilization.memory = self.memory_usage / 1024 / self.memory_size
