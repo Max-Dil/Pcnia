@@ -226,7 +226,7 @@ local cores = Neptun:getCore()
 function Neptun:renderFrame()
     local changed_pixels = self.pixel_draw_count
 
-    for i =  #self.back_buffer, 1, -1 do
+    for i =  1, #self.back_buffer do
         self.frame_buffer[self.back_buffer[i][2]][self.back_buffer[i][1]] = self.back_buffer[i][3]
         self.memory_usage = self.memory_usage + 85
         changed_pixels = changed_pixels + 1

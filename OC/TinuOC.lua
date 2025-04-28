@@ -40,6 +40,7 @@ main | оснвоной скрипт
 ]]
 
 function OC:init(data)
+    love.graphics.setDefaultFilter( 'nearest', 'nearest', 1 )
     OC.logs = {}
     local origPrint = print
     print = function (...)
