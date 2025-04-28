@@ -135,6 +135,7 @@ local function showStatus(message, duration)
 end
 
 local function saveFile(path)
+    print(path)
     local file = FILE_SYSTEM:open(path, "w")
     file:write(textBuffer, function(success)
         if success then
@@ -173,6 +174,8 @@ local function loadFile()
             cursorPos = 1
             updateCursorPosition()
             showStatus("Loaded: "..fileName, 60)
+            updateDisplay()
+        else
             updateDisplay()
         end
     end)
@@ -247,7 +250,7 @@ addEvent("keypressed", function(key)
         updateCursorPosition()
     elseif key == "space" then
         textBuffer = textBuffer:sub(1, cursorPos-1) .. " " .. textBuffer:sub(cursorPos)
-        cursorPos = cursorPos + #key
+        cursorPos = cursorPos + 1
         write(1, textBuffer)
         updateCursorPosition()
     end

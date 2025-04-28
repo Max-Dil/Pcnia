@@ -57,25 +57,25 @@ end
 function love.draw()
     OC:draw()
 
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.setFont(font)
+--     love.graphics.setColor(1, 1, 1)
+--     love.graphics.setFont(font)
+--     love.graphics.scale(0.8, 0.8)
+--     love.graphics.translate(300, 200)
 
-    -- local info = Processor:getInfo()
-    -- love.graphics.print(string.format("Frequency: %d/%d MHz (max: %d, min: %d)", 
-    --     info.clockSpeed, info.baseClockSpeed, info.maxClockSpeed, info.minClockSpeed), 10, 130)
-    -- love.graphics.print(string.format("Power usage: %.1f/%d W", 
-    --     info.powerUsage, info.maxPowerUsage), 10, 150)
-    -- love.graphics.print(string.format("TDP: %.1f/%d (%.1f%%)", 
-    --     info.TPD, info.maxTPD, (info.TPD/info.maxTPD)*100), 10, 170)
-    -- love.graphics.print(string.format("Processes: %d, Auto-boost: %s", 
-    --     info.threads, info.autoBoost and "ON" or "OFF"), 10, 190)
-    -- love.graphics.print(string.format("Thermal status: %s", 
-    --     info.thermalThrottle and "THROTTLING" or "NORMAL"), 10, 210)
-    -- love.graphics.print(string.format("Load: %s%%", 
-    --     info.cpuLoad), 10, 225)
-    -- info = nil
-
---     love.graphics.print("Controls: 1 - add random process, 2 - remove process, B - toggle auto-boost", 10, 240)
+--     local info = Processor:getInfo()
+--     love.graphics.print(string.format("Frequency: %d/%d MHz (max: %d, min: %d)", 
+--         info.clockSpeed, info.baseClockSpeed, info.maxClockSpeed, info.minClockSpeed), 10, 130)
+--     love.graphics.print(string.format("Power usage: %.1f/%d W", 
+--         info.powerUsage, info.maxPowerUsage), 10, 150)
+--     love.graphics.print(string.format("TDP: %.1f/%d (%.1f%%)", 
+--         info.TPD, info.maxTPD, (info.TPD/info.maxTPD)*100), 10, 170)
+--     love.graphics.print(string.format("Processes: %d, Auto-boost: %s", 
+--         info.threads, info.autoBoost and "ON" or "OFF"), 10, 190)
+--     love.graphics.print(string.format("Thermal status: %s", 
+--         info.thermalThrottle and "THROTTLING" or "NORMAL"), 10, 210)
+--     love.graphics.print(string.format("Load: %s%%", 
+--         info.cpuLoad), 10, 225)
+--     info = nil
 
 --     love.graphics.print(string.format("Motherboard: %s (BIOS %s)", MB.model, MB.bios.version), 300, 10)
 --     love.graphics.print(string.format("Clock: %.1f MHz (Stability: %.0f%%)", 
@@ -109,14 +109,14 @@ function love.draw()
 --     love.graphics.print(string.format("Power: %.1fW, Errors: %d", ramInfo.powerUsage, ramInfo.errors), 300, 230)
 --     ramInfo = nil
 
-    -- local gpuInfo = GPU:getInfo()
-    -- love.graphics.print("GPU: "..gpuInfo.model, 300, 270)
-    -- love.graphics.print("Clock: "..gpuInfo.clock, 300, 290)
-    -- love.graphics.print("Temp: "..gpuInfo.temperature, 300, 310)
-    -- love.graphics.print("Power: "..gpuInfo.power, 300, 330)
-    -- love.graphics.print("Utilization: "..gpuInfo.utilization, 300, 350)
-    -- love.graphics.print("FPS: "..gpuInfo.fps, 300, 370)
-    -- gpuInfo = nil
+--     local gpuInfo = GPU:getInfo()
+--     love.graphics.print("GPU: "..gpuInfo.model, 300, 270)
+--     love.graphics.print("Clock: "..gpuInfo.clock, 300, 290)
+--     love.graphics.print("Temp: "..gpuInfo.temperature, 300, 310)
+--     love.graphics.print("Power: "..gpuInfo.power, 300, 330)
+--     love.graphics.print("Utilization: "..gpuInfo.utilization, 300, 350)
+--     love.graphics.print("FPS: "..gpuInfo.fps, 300, 370)
+--     gpuInfo = nil
 
 --     local hddInfo = HDD:getInfo()
 -- love.graphics.print(string.format("HDD: %s (%.1f°C)", hddInfo.model, hddInfo.temperature), 300, 390)
