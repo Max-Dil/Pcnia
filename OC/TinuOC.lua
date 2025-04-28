@@ -1066,7 +1066,7 @@ function OC:runApp(app, appIndex)
                 interface()
             end)
         end,
-        hide = function ()
+        hide = function (isNotMenu)
             OC.mousereleased = nil
             OC.keypressed = nil
             for i = 1, #APP.threads do
@@ -1076,17 +1076,15 @@ function OC:runApp(app, appIndex)
                 end
             end
             APP.frame_buffer = json.encode(GPU.frame_buffer)
-            CPU:addThread(function ()
-                GPU:clear()
-                SLEEP(0.1)
-                GPU:clear()
+            GPU:clear()
+            if not isNotMenu then
                 local interface = RAM:read(1)
                 interface()
-                APP.isVisible = false
-                local envApps = RAM:read(2)
-                envApps[app.name .. ":" .. app.version] = APP
-                RAM:write(2, envApps)
-            end)
+            end
+            APP.isVisible = false
+            local envApps = RAM:read(2)
+            envApps[app.name .. ":" .. app.version] = APP
+            RAM:write(2, envApps)
         end,
         show = function ()
             OC.mousereleased = handleMouseReleased

@@ -81,21 +81,16 @@ end
 local function updateDisplay()
     GPU:clear()
 
-    LDA({50, 50, 50})
-    DRE(0, 0, MONITOR.resolution.width, 30, A())
-    
-    LDA({255, 255, 255})
-    LDX("Notepad - "..fileName)
-    DTX(10, 10, X(), A(), 1)
+    DRE(0, 0, MONITOR.resolution.width, 30, {50, 50, 50})
+
+    DTX(10, 10, "Notepad - "..fileName, {255, 255, 255}, 1)
 
     DRE(MONITOR.resolution.width - 20, 10, 10, 10, {255, 0, 0})
     DRE(MONITOR.resolution.width - 35, 10, 10, 10, {0, 100, 255})
 
-    LDA({40, 40, 40})
-    DRE(0, MONITOR.resolution.height - 20, MONITOR.resolution.width, 20, A())
-    
-    LDX("F1:Save F2:Open F3:New F4:SaveAs")
-    DTX(10, MONITOR.resolution.height - 15, X(), {150, 150, 150}, 1)
+    DRE(0, MONITOR.resolution.height - 20, MONITOR.resolution.width, 20, {40, 40, 40})
+
+    DTX(10, MONITOR.resolution.height - 15, "F1:Save F2:Open F3:New F4:SaveAs", {150, 150, 150}, 1)
 
     if statusMessage ~= "" and statusTimer > 0 then
         LDX(statusMessage)
@@ -124,8 +119,7 @@ local function updateDisplay()
 
     if #lines > maxLines then
         local scrollText = string.format("%d/%d", math.min(visibleStart + maxLines - 1, #lines), #lines)
-        LDX(scrollText)
-        DTX(MONITOR.resolution.width - 50, MONITOR.resolution.height - 15, X(), {150, 150, 150}, 1)
+        DTX(MONITOR.resolution.width - 50, MONITOR.resolution.height - 15, scrollText, {150, 150, 150}, 1)
     end
 end
 

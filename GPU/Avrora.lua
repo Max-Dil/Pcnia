@@ -225,7 +225,6 @@ function Avrora:clear()
         end
     end
     self.pixel_draw_count = changed_pixels
-    copyBuffer()
 
     collectgarbage("collect")
 end
