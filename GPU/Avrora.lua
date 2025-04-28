@@ -1,7 +1,4 @@
 -- GPU/Avrora.lua
-local bit = require("bit")
-local ffi = require("ffi")
-
 local Avrora = {
     model = "Avrora GTX",
     version = "1.0",
@@ -39,10 +36,10 @@ local Avrora = {
     boostThreshold = 0.5,
     throttleThreshold = 0.9,
 
-    CUDA_cores = 46,
-    RT_cores = 18,
-    TMUs = 16,
-    ROPs = 16,
+    CUDA_cores = 406,
+    RT_cores = 108,
+    TMUs = 106,
+    ROPs = 106,
 
     utilization = {
         core = 1,
@@ -55,6 +52,7 @@ local Avrora = {
     fps = 0,
     frame_buffer = {},
     frame_time = 0,
+    render_buffer = {},
 
     connected_cpu = nil,
 
@@ -62,6 +60,17 @@ local Avrora = {
 
     driver = "Unakoda"
 }
+
+local function copyBuffer()
+    Avrora.render_buffer = {}
+    for i = 1, #Avrora.frame_buffer, 1 do
+        Avrora.render_buffer = {}
+        for i2 = 1, #Avrora.frame_buffer[i], 1 do
+            Avrora.render_buffer[i] = {}
+            Avrora.render_buffer[i][i2] = Avrora.frame_buffer[i][i2]
+        end
+    end
+end
 
 function Avrora:init(cpu)
     local driver = require("GPU.DRIVERS."..self.driver)
@@ -85,6 +94,7 @@ function Avrora:initFrameBuffer()
             self.frame_buffer[y][x] = {0, 0, 0} -- RGB
         end
     end
+    copyBuffer()
 end
 
 function Avrora:setResolution(width, height)
@@ -112,7 +122,7 @@ function Avrora:update(dt)
         local speed_factor = self.currentClockSpeed / self.baseClockSpeed
     if self.utilization.core > 0 then
         self.frame_time = self.frame_time + dt * (1 / speed_factor)
-        local target_frame_time = 1 / (self.fps > 0 and self.fps or 60)
+        local target_frame_time = 1 / (self.fps > 0 and self.fps or 1)
         
         if self.frame_time >= target_frame_time then
             self:renderFrame()
@@ -197,6 +207,7 @@ function Avrora:clear()
         end
     end
     self.pixel_draw_count = changed_pixels
+    copyBuffer()
 end
 
 -- for y = 1, self.resolution.height do
@@ -214,7 +225,7 @@ end
 
 local cores = Avrora:getCore()
 function Avrora:renderFrame()
-    local changed_pixels = 0
+    local changed_pixels = self.pixel_draw_count
     local memory = 0
     local is_remove = false
     for y = 1, self.resolution.height do
@@ -234,6 +245,8 @@ function Avrora:renderFrame()
         end
     end
     self.pixel_draw_count = changed_pixels
+
+    copyBuffer()
 
     self.utilization.core = math.max(1,math.min(100, changed_pixels/cores))
     self.utilization.memory = memory / 1024 / self.memory_size

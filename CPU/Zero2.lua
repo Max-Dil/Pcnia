@@ -490,6 +490,10 @@ function DualCoreProcessor:update(dt)
             self:tick()
         end
         self.clockAccumulator = self.clockAccumulator - ticks / self.currentClockSpeed
+
+        if DualCoreProcessor.updateComponents then
+            DualCoreProcessor.updateComponents(dt)
+        end
     end
 end
 

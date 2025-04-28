@@ -9,170 +9,633 @@ local filesApp = {
     system = true,
     scripts = {
         main = [[
-local function displayFiles()
-GPU:clear()
+local function copyDirectory(srcPath, destPath, callback)
+    FILE_SYSTEM:getDirFiles(srcPath, function(files, dirs)
+        FILE_SYSTEM:mkDir(destPath, function(success)
+            if not success then
+                callback(false, "Failed to create destination directory")
+                return
+            end
+            
+            local filesCopied = 0
+            local totalFiles = 0
+            local dirsCopied = 0
+            local totalDirs = #dirs
 
-LDA({255, 255, 255})
-LDX("File Explorer")
-DTX(10, 10, X(), A(), 2)
-DRE(MONITOR.resolution.width - 20, 10, 10, 10, {255, 0, 0})
-DRE(MONITOR.resolution.width - 35, 10, 10, 10, {0, 100, 255})
-local storage = HDD:getAllStorage()
-if not storage or type(storage) ~= "table" or next(storage) == nil then
-LDX("No files found")
-DTX(MONITOR.resolution.width/2 - (#X() * 6), MONITOR.resolution.height/2, X(), {255, 255, 255}, 2)
-return
-end
-local startX = 20
-local startY = 50
-local lineHeight = 20
-local margin = 10
-LDX("Files List:")
-DTX(startX, startY, X(), {255, 255, 255}, 1)
-APP.fileNames = {}
-for name in pairs(storage) do
-table.insert(APP.fileNames, name)
-end
-table.sort(APP.fileNames)
-APP.fileScrollPos = APP.fileScrollPos or 0
-APP.maxVisibleFiles = math.floor((MONITOR.resolution.height - startY - 50) / lineHeight)
-APP.filePositions = {}
-for i = 1, math.min(APP.maxVisibleFiles, #APP.fileNames - APP.fileScrollPos) do
-local fileName = APP.fileNames[i + APP.fileScrollPos]
-local yPos = startY + (i * lineHeight)
-LDX(fileName)
-DTX(startX + margin, yPos, X(), {200, 200, 200}, 1)
-APP.filePositions[fileName] = {x = startX + margin, y = yPos, width = #fileName * 6, height = lineHeight}
-end
-if #APP.fileNames > APP.maxVisibleFiles then
-local scrollText = string.format("%d/%d", math.min(APP.fileScrollPos + 1, #APP.fileNames), #APP.fileNames)
-LDX(scrollText)
-DTX(MONITOR.resolution.width - 50, MONITOR.resolution.height - 30, X(), {150, 150, 150}, 1)
+            for _ in pairs(files) do totalFiles = totalFiles + 1 end
+            
+            if totalFiles == 0 and totalDirs == 0 then
+                callback(true)
+                return
+            end
+            
+            local function checkComplete()
+                if filesCopied == totalFiles and dirsCopied == totalDirs then
+                    callback(true)
+                end
+            end
 
-LDX("up/down: Scroll")
-DTX(10, MONITOR.resolution.height - 30, X(), {150, 150, 150}, 1)
+
+            for filename, _ in pairs(files) do
+                local srcFile = FILE_SYSTEM:open(srcPath.."/"..filename, "r", true)
+                local destFile = FILE_SYSTEM:open(destPath.."/"..filename, "w", true)
+                
+                srcFile:read(function(data)
+                    destFile:write(data, function(success)
+                        srcFile:close()
+                        destFile:close()
+                        filesCopied = filesCopied + 1
+                        checkComplete()
+                    end)
+                end)
+            end
+
+
+            for _, dirname in ipairs(dirs) do
+                copyDirectory(
+                    srcPath.."/"..dirname,
+                    destPath.."/"..dirname,
+                    function(success)
+                        if success then
+                            dirsCopied = dirsCopied + 1
+                            checkComplete()
+                        else
+                            callback(false, "Failed to copy directory "..dirname)
+                        end
+                    end
+                )
+            end
+        end, true)
+    end, true)
 end
+
+local function split(str, delimiter)
+    local result = {}
+    for part in str:gmatch("[^" .. delimiter .. "]+") do
+        table.insert(result, part)
+    end
+    return result
 end
-local function displayFileContent(fileName, content)
-GPU:clear()
-LDA({255, 255, 255})
-LDX("File Content: " .. fileName)
-DTX(10, 10, X(), A(), 2)
-DRE(MONITOR.resolution.width - 20, 10, 10, 10, {255, 0, 0})
-DRE(MONITOR.resolution.width - 35, 10, 10, 10, {0, 100, 255})
-local startX = 20
-local startY = 30
-local lineHeight = 20
-local lines = {}
-write(2, lines)
-local max_chars_per_line = math.floor((MONITOR.resolution.width - 20) / 6)
-for line in content:gmatch("[^\r\n]+") do
-while #line > max_chars_per_line do
-local chunk = line:sub(1, max_chars_per_line)
-table.insert(lines, chunk)
-line = line:sub(max_chars_per_line + 1)
+local fileDialog = {
+    selectedIndex = 1,
+    files = {},
+    directories = {},
+    currentPath = "files",
+    visible = true,
+    fileMenu = nil,
+    clipboard = nil
+}
+
+local openFile = function(data)
+    if data.ext == "txt" then
+        APP.close()
+        -- Открытие блокнота дя будущего
+    end
 end
-if #line > 0 then
-table.insert(lines, line)
+
+local drawFileDialog = function()
+    LDA({0, 0, 0, 150})
+    DRE(0, 0, MONITOR.resolution.width, MONITOR.resolution.height, A())
+
+    local dialogWidth = 400
+    local dialogHeight = 300
+    local dialogX = (MONITOR.resolution.width - dialogWidth) / 2
+    local dialogY = (MONITOR.resolution.height - dialogHeight) / 2
+    
+    LDA({50, 50, 50})
+    DRE(dialogX, dialogY, dialogWidth, dialogHeight, A())
+    
+    LDA({255, 255, 255})
+    LDX("Select file - "..fileDialog.currentPath)
+    DTX(dialogX + 10, dialogY + 10, X(), A(), 2)
+    local listX = dialogX + 10
+    local listY = dialogY + 40
+    local itemHeight = 20
+    local visibleItems = math.floor((dialogHeight - 80) / itemHeight)
+    local allItems = {}
+    for _, dir in ipairs(fileDialog.directories) do table.insert(allItems, dir) end
+    for _, file in ipairs(fileDialog.files) do table.insert(allItems, file) end
+    local startIndex = math.max(1, fileDialog.selectedIndex - math.floor(visibleItems/2))
+    startIndex = math.min(startIndex, #allItems - visibleItems + 1)
+    if startIndex < 1 then startIndex = 1 end
+    
+    local endIndex = math.min(startIndex + visibleItems - 1, #allItems)
+    for i = startIndex, endIndex do
+        local item = allItems[i]
+        local y = listY + (i - startIndex) * itemHeight
+        if i == fileDialog.selectedIndex then
+            LDA({100, 100, 255})
+            DRE(listX, y, dialogWidth - 20, itemHeight, A())
+        end
+        if item.isDir then
+            LDA({255, 255, 0})
+            LDX("[DIR]")
+        else
+            LDA({255, 255, 255})
+            LDX("[FILE]")
+        end
+        DTX(listX + 5, y + 5, X(), A(), 1)
+        LDX(item.name)
+        DTX(listX + 80, y + 5, X(), A(), 1)
+    end
+    LDA({100, 100, 100})
+    DRE(dialogX + 10, dialogY + dialogHeight - 40, 100, 30, A())
+    LDA({255, 255, 255})
+    LDX("Open")
+    DTX(dialogX + 35, dialogY + dialogHeight - 30, X(), A(), 1)
+
+    LDA({70, 70, 70})
+    if fileDialog.clipboard then
+        LDA({70, 170, 70})
+    end
+    DRE(dialogX + 110, dialogY + dialogHeight - 40, 100, 30, A())
+    LDA({255, 255, 255})
+    LDX("Paste")
+    DTX(dialogX + 125, dialogY + dialogHeight - 30, X(), A(), 1)
+
+    LDA({100, 100, 100})
+    DRE(dialogX + 220, dialogY + dialogHeight - 40, 80, 30, A())
+    LDA({255, 255, 255})
+    LDX("New File")
+    DTX(dialogX + 230, dialogY + dialogHeight - 30, X(), A(), 1)
+
+    LDA({100, 100, 100})
+    DRE(dialogX + 310, dialogY + dialogHeight - 40, 80, 30, A())
+    LDA({255, 255, 255})
+    LDX("New Folder")
+    DTX(dialogX + 315, dialogY + dialogHeight - 30, X(), A(), 1)
+
+    DRE(MONITOR.resolution.width - 20, 10, 10, 10, {255, 0, 0})
+    DRE(MONITOR.resolution.width - 35, 10, 10, 10, {0, 100, 255})
+
+    if fileDialog.fileMenu then
+        DRE(fileDialog.fileMenu.x, fileDialog.fileMenu.y, 50, 100, {100, 100, 100})
+
+        local x, y = math.ceil(fileDialog.fileMenu.x), math.ceil(fileDialog.fileMenu.y)
+        DTX(x + 2, y + 2, "Delete", {255, 255, 255}, 1)
+
+        local x, y = math.ceil(fileDialog.fileMenu.x), math.ceil(fileDialog.fileMenu.y)
+        DTX(x + 2, y + 12, "Copy", {255, 255, 255}, 1)
+    end
 end
+local function updateFileList()
+    FILE_SYSTEM:getDirFiles(fileDialog.currentPath, function(files, directories)
+        fileDialog.files = {}
+        fileDialog.directories = {}
+        if not files then
+            files = {}
+        end
+        if not directories then
+            directories = {}
+        end
+        for path, _ in pairs(files) do
+            local fullPath = fileDialog.currentPath.."/"..path
+            table.insert(fileDialog.files, {
+                name = path,
+                path = fullPath,
+                isDir = false
+            })
+        end
+        for _, path in pairs(directories) do
+            local fullPath = fileDialog.currentPath.."/"..path
+            table.insert(fileDialog.directories, {
+                name = path,
+                path = fullPath,
+                isDir = true
+            })
+        end
+        table.sort(fileDialog.directories, function(a, b) return a.name < b.name end)
+        table.sort(fileDialog.files, function(a, b) return a.name < b.name end)
+        
+        fileDialog.selectedIndex = 1
+        drawFileDialog()
+    end, true)
 end
-APP.scrollPos = 0
-APP.maxVisibleLines = math.floor((MONITOR.resolution.height - 80) / lineHeight)
-for i = 1, math.min(APP.maxVisibleLines, #lines - APP.scrollPos) do
-local yPos = startY + ((i-1) * lineHeight)
-LDX(lines[i + APP.scrollPos])
-DTX(startX, yPos, X(), {200, 200, 200}, 1)
+
+local function createNewFile()
+    local dialogWidth = 200
+    local dialogHeight = 100
+    local dialogX = (MONITOR.resolution.width - dialogWidth) / 2
+    local dialogY = (MONITOR.resolution.height - dialogHeight) / 2
+    
+    local filename = ""
+    local active = true
+    
+    local function drawDialog()
+        LDA({50, 50, 50})
+        DRE(dialogX, dialogY, dialogWidth, dialogHeight, A())
+        
+        LDA({255, 255, 255})
+        LDX("Enter filename:")
+        DTX(dialogX + 10, dialogY + 10, X(), A(), 1)
+        
+        LDA({70, 70, 70})
+        DRE(dialogX + 10, dialogY + 30, dialogWidth - 20, 20, A())
+        
+        LDA({255, 255, 255})
+        LDX(filename)
+        DTX(dialogX + 15, dialogY + 35, X(), A(), 1)
+        
+        LDA({100, 100, 100})
+        DRE(dialogX + 10, dialogY + 70, 80, 20, A())
+        LDA({255, 255, 255})
+        LDX("Create")
+        DTX(dialogX + 30, dialogY + 75, X(), A(), 1)
+        
+        LDA({100, 100, 100})
+        DRE(dialogX + 110, dialogY + 70, 80, 20, A())
+        LDA({255, 255, 255})
+        LDX("Cancel")
+        DTX(dialogX + 125, dialogY + 75, X(), A(), 1)
+    end
+    
+    local orig = APP.__events.keypressed[1]
+    removeEvent("keypressed",orig)
+
+    local origM = APP.__events.mousereleased[1]
+    removeEvent("mousereleased",origM)
+
+    addEvent("keypressed", function(key)
+        if not active then return end
+        
+        if key == "backspace" then
+            filename = filename:sub(1, -2)
+        elseif key == "return" then
+            if filename ~= "" then
+                local path = fileDialog.currentPath.."/"..filename
+                local file = FILE_SYSTEM:open(path, "w", true)
+                file:write("", function(success)
+                    file:close()
+                    if success then
+                        table.remove(APP.__events.mousereleased, 1)
+                        addEvent("mousereleased", origM)
+                        table.remove(APP.__events.keypressed, 1)
+                        addEvent("keypressed", orig)
+                        updateFileList()
+                        active = false
+                    end
+                end)
+            end
+        elseif (key:match("%g") or key == "space") and #filename < 20 then
+            filename = filename .. (key == "space" and " " or key)
+        end
+        
+        drawDialog()
+    end)
+
+    addEvent("mousereleased", function(x, y)
+        if not active then return end
+        
+        if x >= dialogX + 10 and x <= dialogX + 90 and
+           y >= dialogY + 70 and y <= dialogY + 90 then
+            if filename ~= "" then
+                local path = fileDialog.currentPath.."/"..filename
+                local file = FILE_SYSTEM:open(path, "w", true)
+                file:write("", function(success)
+                    file:close()
+                    if success then
+                        table.remove(APP.__events.mousereleased, 1)
+                        addEvent("mousereleased", origM)
+                        table.remove(APP.__events.keypressed, 1)
+                        addEvent("keypressed", orig)
+                        updateFileList()
+                        active = false
+                    end
+                end)
+            end
+        elseif x >= dialogX + 110 and x <= dialogX + 190 and
+               y >= dialogY + 70 and y <= dialogY + 90 then
+            table.remove(APP.__events.mousereleased, 1)
+            addEvent("mousereleased", origM)
+            table.remove(APP.__events.keypressed, 1)
+            addEvent("keypressed", orig)
+            active = false
+            drawFileDialog()
+        end
+    end)
+    
+    drawDialog()
 end
-LDX("up/down: Scroll  Esc: Exit  R: Refresh")
-DTX(10, MONITOR.resolution.height - 50, X(), {150, 150, 150}, 1)
-LDX("Back to Files")
-DTX(10, MONITOR.resolution.height - 30, X(), {0, 255, 0}, 1)
-APP.backButton = {x = 10, y = MONITOR.resolution.height - 30, width = #("Back to Files") * 6, height = 20}
-write(2, lines)
+
+local function createNewFolder()
+    local dialogWidth = 200
+    local dialogHeight = 100
+    local dialogX = (MONITOR.resolution.width - dialogWidth) / 2
+    local dialogY = (MONITOR.resolution.height - dialogHeight) / 2
+    
+    local foldername = ""
+    local active = true
+    
+    local function drawDialog()
+        LDA({50, 50, 50})
+        DRE(dialogX, dialogY, dialogWidth, dialogHeight, A())
+        
+        LDA({255, 255, 255})
+        LDX("Enter folder name:")
+        DTX(dialogX + 10, dialogY + 10, X(), A(), 1)
+        
+        LDA({70, 70, 70})
+        DRE(dialogX + 10, dialogY + 30, dialogWidth - 20, 20, A())
+        
+        LDA({255, 255, 255})
+        LDX(foldername)
+        DTX(dialogX + 15, dialogY + 35, X(), A(), 1)
+        
+        LDA({100, 100, 100})
+        DRE(dialogX + 10, dialogY + 70, 80, 20, A())
+        LDA({255, 255, 255})
+        LDX("Create")
+        DTX(dialogX + 30, dialogY + 75, X(), A(), 1)
+        
+        LDA({100, 100, 100})
+        DRE(dialogX + 110, dialogY + 70, 80, 20, A())
+        LDA({255, 255, 255})
+        LDX("Cancel")
+        DTX(dialogX + 125, dialogY + 75, X(), A(), 1)
+    end
+    
+    local orig = APP.__events.keypressed[1]
+    removeEvent("keypressed",orig)
+
+    local origM = APP.__events.mousereleased[1]
+    removeEvent("mousereleased",origM)
+
+    addEvent("keypressed", function(key)
+        if not active then return end
+        
+        if key == "backspace" then
+            foldername = foldername:sub(1, -2)
+        elseif key == "return" then
+            if foldername ~= "" then
+                local path = fileDialog.currentPath.."/"..foldername
+                FILE_SYSTEM:mkDir(path, function(success)
+                    if success then
+                        table.remove(APP.__events.keypressed, 1)
+                        addEvent("keypressed", orig)
+                        table.remove(APP.__events.mousereleased, 1)
+                        addEvent("mousereleased", origM)
+                        updateFileList()
+                        active = false
+                    end
+                end, true)
+            end
+        elseif (key:match("%g") or key == "space") and #foldername < 20 then
+            foldername = foldername .. (key == "space" and " " or key)
+        end
+        
+        drawDialog()
+    end)
+
+    addEvent("mousereleased", function(x, y)
+        if not active then return end
+        
+        if x >= dialogX + 10 and x <= dialogX + 90 and
+           y >= dialogY + 70 and y <= dialogY + 90 then
+            if foldername ~= "" then
+                local path = fileDialog.currentPath.."/"..foldername
+                FILE_SYSTEM:mkDir(path, function(success)
+                    if success then
+                        table.remove(APP.__events.keypressed, 1)
+                        addEvent("keypressed", orig)
+                        table.remove(APP.__events.mousereleased, 1)
+                        addEvent("mousereleased", origM)
+                        updateFileList()
+                        active = false
+                    end
+                end, true)
+            end
+        elseif x >= dialogX + 110 and x <= dialogX + 190 and
+               y >= dialogY + 70 and y <= dialogY + 90 then
+            table.remove(APP.__events.keypressed, 1)
+            addEvent("keypressed", orig)
+            table.remove(APP.__events.mousereleased, 1)
+            addEvent("mousereleased", origM)
+            active = false
+            drawFileDialog()
+        end
+    end)
+    
+    drawDialog()
 end
-local is_block_event = false
-addEvent("keypressed", function(key)
-if is_block_event then
-return
-end
-if key == "escape" then
-APP.close()
-elseif key == "r" then
-write(2, 0)
-displayFiles()
-elseif key == "up" or key == "down" then
-if read(2) ~= 0 then
-if key == "up" and APP.scrollPos > 0 then
-APP.scrollPos = APP.scrollPos - 1
-elseif key == "down" and APP.scrollPos < #read(2) - APP.maxVisibleLines then
-APP.scrollPos = APP.scrollPos + 1
-end
-GPU:clear()
-LDA({255, 255, 255})
-LDX("File Content: " .. APP.currentFile)
-DTX(10, 10, X(), A(), 2)
-DRE(MONITOR.resolution.width - 20, 10, 10, 10, {255, 0, 0})
-DRE(MONITOR.resolution.width - 35, 10, 10, 10, {0, 100, 255})
-local startX = 20
-local startY = 30
-local lineHeight = 20
-for i = 1, math.min(APP.maxVisibleLines, #read(2) - APP.scrollPos) do
-local yPos = startY + ((i-1) * lineHeight)
-LDX(read(2)[i + APP.scrollPos])
-DTX(startX, yPos, X(), {200, 200, 200}, 1)
-end
-LDX("up/down: Scroll  Esc: Exit  R: Refresh")
-DTX(10, MONITOR.resolution.height - 50, X(), {150, 150, 150}, 1)
-LDX("Back to Files")
-DTX(10, MONITOR.resolution.height - 30, X(), {0, 255, 0}, 1)
-else
-if key == "up" and APP.fileScrollPos > 0 then
-APP.fileScrollPos = APP.fileScrollPos - 1
-elseif key == "down" and APP.fileScrollPos < #APP.fileNames - APP.maxVisibleFiles then
-APP.fileScrollPos = APP.fileScrollPos + 1
-end
-displayFiles()
-end
-end
+
+updateFileList()
+addEvent("mousereleased", function(x, y, button)
+    local dialogWidth = 400
+    local dialogHeight = 300
+    local dialogX = (MONITOR.resolution.width - dialogWidth) / 2
+    local dialogY = (MONITOR.resolution.height - dialogHeight) / 2
+
+    if fileDialog.fileMenu then
+        local menuX, menuY = fileDialog.fileMenu.x, fileDialog.fileMenu.y
+        local menuWidth, menuHeight = 50, 100
+        
+        if x >= menuX and x <= menuX + menuWidth and
+           y >= menuY and y <= menuY + menuHeight then
+           
+            if y >= menuY + 2 and y <= menuY + 12 then
+                local allItems = {}
+                for _, dir in ipairs(fileDialog.directories) do table.insert(allItems, dir) end
+                for _, file in ipairs(fileDialog.files) do table.insert(allItems, file) end
+                
+                if fileDialog.selectedIndex >= 1 and fileDialog.selectedIndex <= #allItems then
+                    local selected = allItems[fileDialog.selectedIndex]
+
+                    local path = split(selected.path, "/")
+                    for i=1 , #path, 1 do
+                        if path[i] == "files" then
+                            table.remove(path, i)
+                        else
+                            break
+                        end
+                    end
+                    path = table.concat(path, "/")
+
+                    if selected.isDir then
+                        FILE_SYSTEM:rmDir(path, function(success)
+                            if success then
+                                updateFileList()
+                            end
+                        end)
+                    else
+
+                        local file = FILE_SYSTEM:open(path, "w")
+                        file:remove(function(success, err)
+                            file.close()
+                            if success then
+                                updateFileList()
+                            end
+                        end)
+                    end
+                end
+            elseif y >= menuY + 12 and y <= menuY + 22 then
+                local allItems = {}
+                for _, dir in ipairs(fileDialog.directories) do table.insert(allItems, dir) end
+                for _, file in ipairs(fileDialog.files) do table.insert(allItems, file) end
+                
+                if fileDialog.selectedIndex >= 1 and fileDialog.selectedIndex <= #allItems then
+                    local selected = allItems[fileDialog.selectedIndex]
+                    fileDialog.clipboard = {
+                        path = selected.path,
+                        isDir = selected.isDir
+                    }
+                end
+            end
+        end
+        
+        fileDialog.fileMenu = nil
+        drawFileDialog()
+        return
+    end
+    if x >= dialogX + 10 and x <= dialogX + 110 and
+       y >= dialogY + dialogHeight - 40 and y <= dialogY + dialogHeight - 10 then
+        local allItems = {}
+        for _, dir in ipairs(fileDialog.directories) do table.insert(allItems, dir) end
+        for _, file in ipairs(fileDialog.files) do table.insert(allItems, file) end
+        
+        if #allItems > 0 and fileDialog.selectedIndex >= 1 and fileDialog.selectedIndex <= #allItems then
+            local selected = allItems[fileDialog.selectedIndex]
+            
+            if selected.isDir then
+                fileDialog.currentPath = selected.path
+                updateFileList()
+            else
+                local file = FILE_SYSTEM:open(selected.path, "r", true)
+                file:read(function(data)
+                    file:close()
+                    
+                    GPU:clear()
+                    
+                    openFile({
+                        path = selected.path,
+                        name = selected.name,
+                        data = data,
+                        ext = file.fileExt
+                    })
+                end)
+                return nil
+            end
+        end
+    elseif x >= dialogX + 220 and x <= dialogX + 300 and
+       y >= dialogY + dialogHeight - 40 and y <= dialogY + dialogHeight - 10 then
+        createNewFile()
+        return nil
+    elseif x >= dialogX + 310 and x <= dialogX + 390 and
+       y >= dialogY + dialogHeight - 40 and y <= dialogY + dialogHeight - 10 then
+        createNewFolder()
+        return nil
+    elseif x >= dialogX + 120 and x <= dialogX + 220 and
+       y >= dialogY + dialogHeight - 40 and y <= dialogY + dialogHeight - 10 then
+    if fileDialog.clipboard then
+        local allItems = {}
+        for _, dir in ipairs(fileDialog.directories) do table.insert(allItems, dir) end
+        for _, file in ipairs(fileDialog.files) do table.insert(allItems, file) end
+        
+        if fileDialog.clipboard.isDir then
+            local newPath = fileDialog.currentPath.."/"..fileDialog.clipboard.path:match("([^/]+)$")
+            copyDirectory(
+                fileDialog.clipboard.path,
+                newPath,
+                function(success)
+                    if success then
+                        fileDialog.clipboard = nil
+                        updateFileList()
+                    else
+                        print("Error copy folder")
+                    end
+                end
+            )
+        else
+            local newPath = fileDialog.currentPath.."/"..fileDialog.clipboard.path:match("([^/]+)$")
+            local origFile = FILE_SYSTEM:open(fileDialog.clipboard.path, "r", true)
+            local newFile = FILE_SYSTEM:open(newPath, "w", true)
+            
+            origFile:read(function(data)
+                origFile:close()
+                newFile:write(data, function(success)
+                    newFile:close()
+                    fileDialog.clipboard = nil
+                    updateFileList()
+                end)
+            end)
+        end
+    end
+    else
+        local listX = dialogX + 10
+        local listY = dialogY + 40
+        local itemHeight = 20
+        local visibleItems = math.floor((dialogHeight - 80) / itemHeight)
+        
+        if x >= listX and x <= listX + dialogWidth - 20 and
+           y >= listY and y <= listY + visibleItems * itemHeight then
+            
+            local allItems = {}
+            for _, dir in ipairs(fileDialog.directories) do table.insert(allItems, dir) end
+            for _, file in ipairs(fileDialog.files) do table.insert(allItems, file) end
+            
+            local startIndex = math.max(1, fileDialog.selectedIndex - math.floor(visibleItems/2))
+            startIndex = math.min(startIndex, #allItems - visibleItems + 1)
+            if startIndex < 1 then startIndex = 1 end
+            
+            local clickedIndex = startIndex + math.floor((y - listY) / itemHeight)
+            
+            if clickedIndex >= 1 and clickedIndex <= #allItems then
+                fileDialog.selectedIndex = clickedIndex
+                if button == 2 then
+                    fileDialog.fileMenu = {
+                        x = x, y = y
+                    }
+                end
+            end
+        end
+    end
+    drawFileDialog()
 end)
-addEvent("mousereleased", function(x, y)
-if is_block_event then
-return
-end
-if APP.backButton and x >= APP.backButton.x and x <= APP.backButton.x + APP.backButton.width and
-y >= APP.backButton.y and y <= APP.backButton.y + APP.backButton.height then
-write(2, 0)
-displayFiles()
-return
-end
-for fileName, pos in pairs(APP.filePositions) do
-if x >= pos.x and x <= pos.x + pos.width and y >= pos.y and y <= pos.y + pos.height then
-GPU:clear()
-LDX("Loadind content...")
-DTX(MONITOR.resolution.width/2 - #X() * 4, MONITOR.resolution.height/2, X(), {255, 255, 255})
-is_block_event = true
-HDD:read(fileName, function(content)
-is_block_event = false
-APP.currentFile = fileName
-displayFileContent(fileName, content)
-return
+
+addEvent("keypressed",function(key, scancode, isrepeat)
+    local allItems = {}
+    for _, dir in ipairs(fileDialog.directories) do table.insert(allItems, dir) end
+    for _, file in ipairs(fileDialog.files) do table.insert(allItems, file) end
+    
+    if key == "up" then
+        fileDialog.selectedIndex = math.max(1, fileDialog.selectedIndex - 1)
+    elseif key == "down" then
+        fileDialog.selectedIndex = math.min(#allItems, fileDialog.selectedIndex + 1)
+    elseif key == "return" then
+        local selected = allItems[fileDialog.selectedIndex]
+        
+        if selected.isDir then
+            fileDialog.currentPath = selected.path
+            updateFileList()
+        else
+            local file = FILE_SYSTEM:open(selected.path, "r", true)
+            file:read(function(data)
+                file:close()
+                
+                GPU:clear()
+            
+                openFile({
+                    path = selected.path,
+                    name = selected.name,
+                    data = data,
+                    ext = file.fileExt
+                })
+            end)
+            return nil
+        end
+    elseif key == "backspace" then
+        local parts = {}
+        for part in fileDialog.currentPath:gmatch("[^/]+") do
+            table.insert(parts, part)
+        end
+        
+        if #parts > 1 then
+            table.remove(parts)
+            fileDialog.currentPath = table.concat(parts, "/")
+            updateFileList()
+        end
+    end
+    drawFileDialog()
 end)
-end
-end
-end)
-APP.filePositions = {}
-APP.backButton = nil
-write(2, 0) -- lines
-APP.scrollPos = 0
-APP.maxVisibleLines = 0
-APP.fileNames = {}
-APP.fileScrollPos = 0
-APP.maxVisibleFiles = 0
-APP.currentFile = ""
-displayFiles()
-while true do
-SLEEP(0.05)
-end
         ]]
     }
 }

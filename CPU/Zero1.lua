@@ -427,6 +427,10 @@ function Processor:update(dt)
             self:tick()
         end
         self.clockAccumulator = self.clockAccumulator - ticks / self.currentClockSpeed
+
+        if Processor.updateComponents then
+            Processor.updateComponents(dt)
+        end
     end
 end
 
