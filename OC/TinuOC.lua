@@ -105,7 +105,7 @@ function OC:init(data)
                 print("Init failed:", err)
                 return
             end
-    
+
             HDD:read("is_load", function (is_load)
                 if is_load ~= "true" then
                     HDD:write("is_load", "true", function(success)

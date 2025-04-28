@@ -88,8 +88,25 @@ local fileDialog = {
 
 local openFile = function(data)
     if data.ext == "txt" then
-        APP.close()
-        -- Открытие блокнота дя будущего
+        APP.hide(true)
+        SLEEP(0.5)
+        local fileApp = FILE_SYSTEM:open("User/AppData/app_notepad/app.json", "r")
+        fileApp:read(function (appJson)
+            local app = json.decode(appJson)
+            
+            if app then
+                local appIndex = "app_" .. app.name:lower():gsub("[^%w]", "_")
+                local envApps = RAM:read(2)
+
+                local appKey = app.name .. ":" .. app.version
+                                    
+                if envApps[appKey] then
+                    envApps[appKey].show()
+                else
+                    OC:loadApp(appIndex)
+                end
+            end
+        end)
     end
 end
 

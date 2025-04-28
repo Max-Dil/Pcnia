@@ -4,21 +4,11 @@ local ProcessorCore = {
     model = "Zero2",
     version = "1.0",
 
-    registers = {
-        A = 0,      -- Accumulator
-        X = 0,      -- X Register
-        Y = 0,      -- Y Register
-        PC = 0,     -- Program Counter
-        SP = 128,   -- Stack Pointer (starts at 128)
-        SR = 0,     -- Status Register (flags)
-    },
-
     currentThread = 1,
     threads = {},   -- Threads (coroutines)
 }
 
 function ProcessorCore:init()
-    self.registers.SP = 128
     self.gpu = nil
 end
 
@@ -38,109 +28,6 @@ function ProcessorCore:updatePerformanceFactor(cpuLoad, thermalFactor)
     end
     
     self.performanceFactor = math.max(0.1, self.performanceFactor)
-end
-
-function ProcessorCore:LDA(value)
-    self:applyLoadDelay()
-    self.registers.A = value
-end
-
-function ProcessorCore:STA(addr)
-    self:applyLoadDelay()
-    self.motherboard:writeMemory(addr, self.registers.A)
-end
-
-function ProcessorCore:LDX(value)
-    self:applyLoadDelay()
-    self.registers.X = value
-end
-
-function ProcessorCore:STX(addr)
-    self:applyLoadDelay()
-    self.motherboard:writeMemory(addr, self.registers.X)
-end
-
-function ProcessorCore:LDY(value)
-    self:applyLoadDelay()
-    self.registers.Y = value
-end
-
-function ProcessorCore:STY(addr)
-    self:applyLoadDelay()
-    self.motherboard:writeMemory(addr, self.registers.Y)
-end
-
-function ProcessorCore:ADD(a, b)
-    self:applyLoadDelay()
-    return (a or self.registers.A) + (b or 0)
-end
-
-function ProcessorCore:SUB(a, b)
-    self:applyLoadDelay()
-    return (a or self.registers.A) - (b or 0)
-end
-
-function ProcessorCore:MUL(a, b)
-    self:applyLoadDelay()
-    return (a or self.registers.A) * (b or 1)
-end
-
-function ProcessorCore:DIV(a, b)
-    self:applyLoadDelay()
-    return (a or self.registers.A) / (b or 1)
-end
-
-function ProcessorCore:AND(a, b)
-    self:applyLoadDelay()
-    return bit.band(a or self.registers.A, b or 0)
-end
-
-function ProcessorCore:OR(a, b)
-    self:applyLoadDelay()
-    return bit.bor(a or self.registers.A, b or 0)
-end
-
-function ProcessorCore:XOR(a, b)
-    self:applyLoadDelay()
-    return bit.bxor(a or self.registers.A, b or 0)
-end
-
-function ProcessorCore:NOT(a)
-    self:applyLoadDelay()
-    return bit.bnot(a or self.registers.A)
-end
-
-function ProcessorCore:SHL(a, bits)
-    self:applyLoadDelay()
-    return bit.lshift(a or self.registers.A, bits or 1)
-end
-
-function ProcessorCore:SHR(a, bits)
-    self:applyLoadDelay()
-    return bit.rshift(a or self.registers.A, bits or 1)
-end
-
-function ProcessorCore:CMP(a, b)
-    self:applyLoadDelay()
-    local result = (a or self.registers.A) - (b or 0)
-    if result == 0 then
-        self.registers.SR = bit.bor(self.registers.SR, 0x02)
-    else
-        self.registers.SR = bit.band(self.registers.SR, bit.bnot(0x02))
-    end
-    return result
-end
-
-function ProcessorCore:PUSH(value)
-    self:applyLoadDelay()
-    self.motherboard:writeMemory(self.registers.SP, value or self.registers.A)
-    self.registers.SP = self.registers.SP + 1
-end
-
-function ProcessorCore:POP()
-    self:applyLoadDelay()
-    self.registers.SP = self.registers.SP - 1
-    return self.motherboard:readMemory(self.registers.SP)
 end
 
 function ProcessorCore:DRW(x, y, r, g, b)
@@ -193,35 +80,111 @@ end
 
 function ProcessorCore:addThread(func)
     local co = coroutine.create(function()
+        local A, X, Y, SR, SP = 0, 0, 0, 0, 128
         local env = {
-            LDA = function(v) coroutine.yield() return self:LDA(v) end,
-            STA = function(a) coroutine.yield() return self:STA(a) end,
-            LDX = function(v) coroutine.yield() return self:LDX(v) end,
-            STX = function(a) coroutine.yield() return self:STX(a) end,
-            LDY = function(v) coroutine.yield() return self:LDY(v) end,
-            STY = function(a) coroutine.yield() return self:STY(a) end,
-            ADD = function(a, b) coroutine.yield() return self:ADD(a, b) end,
-            SUB = function(a, b) coroutine.yield() return self:SUB(a, b) end,
-            MUL = function(a, b) coroutine.yield() return self:MUL(a, b) end,
-            DIV = function(a, b) coroutine.yield() return self:DIV(a, b) end,
-            AND = function(a, b) coroutine.yield() return self:AND(a, b) end,
-            OR = function(a, b) coroutine.yield() return self:OR(a, b) end,
-            XOR = function(a, b) coroutine.yield() return self:XOR(a, b) end,
-            NOT = function(a) coroutine.yield() return self:NOT(a) end,
-            SHL = function(a, b) coroutine.yield() return self:SHL(a, b) end,
-            SHR = function(a, b) coroutine.yield() return self:SHR(a, b) end,
-            CMP = function(a, b) coroutine.yield() return self:CMP(a, b) end,
-            PUSH = function(v) coroutine.yield() return self:PUSH(v) end,
-            POP = function() coroutine.yield() return self:POP() end,
+            LDA = function(v)
+                coroutine.yield()
+                self:applyLoadDelay()
+                A = v
+            end,
+            STA = function(a)
+                coroutine.yield()
+                self:applyLoadDelay()
+                self.motherboard:writeMemory(a, A)
+            end,
+            LDX = function(v)
+                coroutine.yield()
+                self:applyLoadDelay()
+                X = v
+            end,
+            LDY = function(v)
+                coroutine.yield()
+                self:applyLoadDelay()
+                Y = v
+            end,
+            STX = function(a)
+                coroutine.yield()
+                self:applyLoadDelay()
+                self.motherboard:writeMemory(a, X)
+            end,
+            STY = function (a)
+                coroutine.yield()
+                self:applyLoadDelay()
+                self.motherboard:writeMemory(a, Y)
+            end,
+            ADD = function(a, b)
+                coroutine.yield()
+                self:applyLoadDelay()
+                return (a or A) + (b or 0)
+            end,
+            SUB = function(a, b)
+                coroutine.yield()
+                self:applyLoadDelay()
+                return (a or A) - (b or 0)
+            end,
+            MUL = function(a, b)
+                coroutine.yield()
+                self:applyLoadDelay()
+                return (a or A) * (b or 1)
+            end,
+            DIV = function(a, b) coroutine.yield()
+                self:applyLoadDelay()
+                return (a or A) / (b or 1)
+            end,
+            AND = function(a, b) coroutine.yield()
+                self:applyLoadDelay()
+                return bit.band(a or A, b or 0)
+            end,
+            OR = function(a, b) coroutine.yield()
+                self:applyLoadDelay()
+                return bit.bor(a or A, b or 0)
+            end,
+            XOR = function(a, b) coroutine.yield()
+                self:applyLoadDelay()
+                return bit.bxor(a or A, b or 0)
+            end,
+            NOT = function(a) coroutine.yield()
+                self:applyLoadDelay()
+                return bit.bnot(a or A)
+            end,
+            SHL = function(a, b) coroutine.yield()
+                self:applyLoadDelay()
+                return bit.lshift(a or A, b or 1)
+            end,
+            SHR = function(a, b) coroutine.yield()
+                self:applyLoadDelay()
+                return bit.rshift(a or A, b or 1)
+            end,
+            CMP = function(a, b) coroutine.yield()
+                self:applyLoadDelay()
+                local result = (a or A) - (b or 0)
+                if result == 0 then
+                    SR = bit.bor(SR, 0x02)
+                else
+                    SR = bit.band(SR, bit.bnot(0x02))
+                end
+                return result
+            end,
+            PUSH = function(v) coroutine.yield()
+                self:applyLoadDelay()
+                self.motherboard:writeMemory(SP, v or A)
+                SP = SP + 1
+            end,
+            POP = function()
+                coroutine.yield()
+                self:applyLoadDelay()
+                SP = SP - 1
+                return self.motherboard:readMemory(SP)
+            end,
             DRW = function(x, y, r, g, b) coroutine.yield() return self:DRW(x, y, r, g, b) end,
             DTX = function(x, y, text, color, scale) coroutine.yield() return self:DTX(x, y, text, color, scale) end,
             DRE = function(x, y, width, height, color) coroutine.yield() return self:DRE(x, y, width, height, color) end,
             DRM = function(x, y, data) coroutine.yield() return self:DRM(x, y, data) end,
             SLEEP = function(s) return self:SLEEP(s) end,
 
-            A = function() coroutine.yield() return self.registers.A end,
-            X = function() coroutine.yield() return self.registers.X end,
-            Y = function() coroutine.yield() return self.registers.Y end,
+            A = function() coroutine.yield() return A end,
+            X = function() coroutine.yield() return X end,
+            Y = function() coroutine.yield() return Y end,
 
             read = function(addr) coroutine.yield() return self.motherboard:readMemory(addr) end,
             write = function(addr, value) coroutine.yield() return self.motherboard:writeMemory(addr, value) end,

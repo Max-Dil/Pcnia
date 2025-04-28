@@ -289,7 +289,7 @@ function Avrora:drawPixel(x, y, color)
 end
 
 function Avrora:getFrameBuffer()
-    return self.frame_buffer
+    return self.render_buffer
 end
 
 function Avrora:getInfo()

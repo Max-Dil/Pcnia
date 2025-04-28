@@ -180,6 +180,7 @@ local function loadFile()
         end
     end)
 end
+APP.loadFile = loadFile
 
 local function newFile()
     textBuffer = ""

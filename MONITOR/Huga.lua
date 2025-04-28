@@ -112,6 +112,10 @@ function Huga:draw()
     for y = 1, self.resolution.height do
         for x = 1, self.resolution.width do
             local color = self.pixels[y][x] or {0, 0, 0}
+            if color[1] == nil then
+                print(require("json").encode(self.pixels))
+                return
+            end
             local r, g, b = self:applyColorEffects(color[1], color[2], color[3])
             self.imageData:setPixel(x-1, y-1, r/255, g/255, b/255, 1)
         end
