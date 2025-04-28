@@ -37,6 +37,8 @@ local Processor = {
     lastTime = 0,
     cpuLoad = 0,          -- Загрузка CPU в %
     performanceFactor = 1, -- Фактор производительности (0-1)
+
+    input_current = 10,
 }
 
 function Processor:applyLoadDelay()
@@ -413,8 +415,9 @@ function Processor:tick()
 end
 
 function Processor:update(dt)
+    if self.input_current < math.min(self.powerUsage, self.maxPowerUsage) then self.input_current = 0 return end
     self.lastTime = love.timer.getTime()
-    
+
     self:autoBoostClock()
     self:updatePowerUsage()
     self:updateTPD()

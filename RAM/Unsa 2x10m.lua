@@ -12,6 +12,8 @@ local Unsa2x1GB = {
     voltage = 1.5,                  -- Рабочее напряжение
     channels = 2,                   -- Количество каналов
 
+    input_current = 7,
+
     timings = {
         tCL = 9,
         tRCD = 9,
@@ -186,6 +188,7 @@ function Unsa2x1GB:_simulateBusy(duration)
 end
 
 function Unsa2x1GB:update(dt)
+    if self.input_current < self.currentPower then self.input_current = 0 return end
     self.temperature = math.max(30, self.temperature - dt * 5)
 
     if os.clock() - self._lastAccessTime > 0.1 then

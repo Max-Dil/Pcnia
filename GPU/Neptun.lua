@@ -1,49 +1,50 @@
--- GPU/Avrora.lua
+-- GPU/Neptun.lua
 
 --[[
-Самая первая и днишенская видео карта, ужасно оптимизирована и слабая
+Видео крата на новой аритектуре, оптимизирована за счет использования быстрого буфера и мощнее своих предсшественников
+однако и энергии требует больше
 ]]
-local Avrora = {
-    model = "Avrora GTX",
+local Neptun = {
+    model = "Neptun GTX",
     version = "1.0",
     manufacturer = "StimorGPU",
-    architecture = "STNA",
+    architecture = "NATS",
 
     -- Память
     MEMORY = {},
-    memory_size = 100,        -- MB
-    memory_type = "GDDR1X",
-    memory_bus_width = 8,
-    memory_bandwidth = 0.05, -- GB/s
+    memory_size = 500,        -- MB
+    memory_type = "GDDR2",
+    memory_bus_width = 16,
+    memory_bandwidth = 0.2, -- GB/s
     memory_usage = 0,       -- MB used
 
-    baseClockSpeed = 500,
-    boostClockSpeed = 700,
-    currentClockSpeed = 200,
-    memoryClockSpeed = 100,
+    baseClockSpeed = 700,
+    boostClockSpeed = 900,
+    currentClockSpeed = 500,
+    memoryClockSpeed = 400,
 
-    TDP = 50,
+    TDP = 100,
     max_temperature = 95,
-    current_temperature = 40,
+    current_temperature = 50,
     power_usage = 0,
-    coolingRate = 0.5,
+    coolingRate = 0.6,
     heatingRate = 0.5,
     fan_speed = 30,
     max_fan_speed = 100,
 
     autoBoost = true,
-    power_limit = 60,
-    voltage = 1.1,
+    power_limit = 120,
+    voltage = 1.5,
 
-    maxClockSpeed = 700,
-    minClockSpeed = 10,
+    maxClockSpeed = 900,
+    minClockSpeed = 100,
     boostThreshold = 0.5,
     throttleThreshold = 0.9,
 
-    CUDA_cores = 406,
-    RT_cores = 108,
-    TMUs = 106,
-    ROPs = 106,
+    CUDA_cores = 806,
+    RT_cores = 208,
+    TMUs = 206,
+    ROPs = 206,
 
     utilization = {
         core = 1,
@@ -51,7 +52,7 @@ local Avrora = {
         power = 0,
     },
 
-    resolution = {width = 640, height = 480},
+    resolution = {width = 1960, height = 1280},
     color_depth = 32,
     fps = 0,
     frame_buffer = {},
@@ -64,23 +65,11 @@ local Avrora = {
 
     driver = "Unakoda",
 
-    input_current = 100,
+    input_current = 200,
     current_fps = 30
 }
 
-local function copyBuffer()
-    Avrora.render_buffer = {}
-    for y = 1, #Avrora.frame_buffer do
-        local new_row = {}
-        local src_row = Avrora.frame_buffer[y]
-        for x = 1, #src_row do
-            new_row[x] = {src_row[x][1], src_row[x][2], src_row[x][3]}
-        end
-        Avrora.render_buffer[y] = new_row
-    end
-end
-
-function Avrora:init(cpu)
+function Neptun:init(cpu)
     local driver = require("GPU.DRIVERS."..self.driver)
     local memory_bytes = self.memory_size * 1024
     for i = 0, memory_bytes - 1 do
@@ -94,18 +83,18 @@ function Avrora:init(cpu)
     return self
 end
 
-function Avrora:initFrameBuffer()
+function Neptun:initFrameBuffer()
     self.frame_buffer = {}
+    self.back_buffer = {}
     for y = 1, self.resolution.height do
         self.frame_buffer[y] = {}
         for x = 1, self.resolution.width do
             self.frame_buffer[y][x] = {0, 0, 0} -- RGB
         end
     end
-    copyBuffer()
 end
 
-function Avrora:setResolution(width, height)
+function Neptun:setResolution(width, height)
     if width * height * (self.color_depth/8) > self.memory_size * 1024 then
         print("Error: Not enough video memory for this resolution")
         return false
@@ -117,7 +106,7 @@ function Avrora:setResolution(width, height)
     return true
 end
 
-function Avrora:update(dt)
+function Neptun:update(dt)
     if self.input_current < self.power_usage then self.input_current = 0 return end
 
     self:updateTemperature(dt)
@@ -140,7 +129,7 @@ function Avrora:update(dt)
     end
 end
 
-function Avrora:updateTemperature(dt)
+function Neptun:updateTemperature(dt)
 
     local heat_factor = (self.utilization.core/100) * (self.currentClockSpeed/self.baseClockSpeed)
     self.current_temperature = self.current_temperature + heat_factor * self.heatingRate * dt
@@ -156,7 +145,7 @@ function Avrora:updateTemperature(dt)
     end
 end
 
-function Avrora:autoBoostClock()
+function Neptun:autoBoostClock()
     if not self.autoBoost then return end
 
     if self.current_temperature > self.max_temperature * self.throttleThreshold then
@@ -188,13 +177,13 @@ function Avrora:autoBoostClock()
     end
 end
 
-function Avrora:updatePowerUsage()
+function Neptun:updatePowerUsage()
     local power_factor = (self.utilization.core/50) * (self.currentClockSpeed/self.maxClockSpeed) * (self.fan_speed/self.max_fan_speed)
     self.power_usage = self.TDP * power_factor * (self.power_limit/100)
     self.utilization.power = (self.power_usage / self.TDP) * 100
 end
 
-function Avrora:updateFanSpeed(dt)
+function Neptun:updateFanSpeed(dt)
     local target_speed = 30 + (self.current_temperature - 40) * 2
     target_speed = math.min(self.max_fan_speed, math.max(30, target_speed))
     
@@ -205,7 +194,8 @@ function Avrora:updateFanSpeed(dt)
     end
 end
 
-function Avrora:clear()
+function Neptun:clear()
+    self.back_buffer = {}
     local changed_pixels = 0
     for y = 1, self.resolution.height do
         for x = 1, self.resolution.width do
@@ -216,7 +206,7 @@ function Avrora:clear()
         end
     end
     self.pixel_draw_count = changed_pixels
-    copyBuffer()
+    self.memory_usage = 0
 end
 
 -- for y = 1, self.resolution.height do
@@ -228,60 +218,53 @@ end
 --     end
 -- end
 
-function Avrora:getCore()
-    return Avrora.CUDA_cores + (Avrora.RT_cores * 0.8) + (Avrora.TMUs * 0.6) + (Avrora.ROPs * 0.4)
+function Neptun:getCore()
+    return Neptun.CUDA_cores + (Neptun.RT_cores * 0.8) + (Neptun.TMUs * 0.6) + (Neptun.ROPs * 0.4)
 end
 
-local cores = Avrora:getCore()
-function Avrora:renderFrame()
+local cores = Neptun:getCore()
+function Neptun:renderFrame()
     local changed_pixels = self.pixel_draw_count
-    local memory = 0
-    local is_remove = false
-    for y = 1, self.resolution.height do
-        for x = 1, self.resolution.width do
-            if self.frame_buffer[y][x][1] ~= 0 or self.frame_buffer[y][x][2] ~= 0 or self.frame_buffer[y][x][3] ~= 0 then
-                changed_pixels = changed_pixels + 1
-                memory = memory + 85
-                if is_remove then
-                    changed_pixels = changed_pixels - 1
-                    memory = memory - 85
-                    self.frame_buffer[y][x] = {0,0,0}
-                end
-                if memory / 1024 / self.memory_size > 100 then
-                    is_remove = true
-                end
-            end
+
+    for i =  #self.back_buffer, 1, -1 do
+        self.frame_buffer[self.back_buffer[i][2]][self.back_buffer[i][1]] = self.back_buffer[i][3]
+        self.memory_usage = self.memory_usage + 85
+        changed_pixels = changed_pixels + 1
+        if self.back_buffer[i][3][1] == 0 and self.back_buffer[i][3][2] == 0 and self.back_buffer[i][3][3] == 0 then
+            self.memory_usage = self.memory_usage - 85
+        end
+        self.back_buffer[i] = nil
+        if self.memory_usage / 1024 / self.memory_size > 100 then
+            break
         end
     end
     self.pixel_draw_count = changed_pixels
 
-    copyBuffer()
 
     self.utilization.core = math.max(1,math.min(100, changed_pixels/cores))
-    self.utilization.memory = memory / 1024 / self.memory_size
-    self.memory_usage = memory / 1024
+    self.utilization.memory = self.memory_usage / 1024 / self.memory_size
     self.fps = (self.current_fps * (self.currentClockSpeed/self.baseClockSpeed)) * (1 - self.utilization.core/100)
     self.pixel_draw_count = 0
 end
 
-function Avrora:getPowerConsumption()
+function Neptun:getPowerConsumption()
     return self.power_usage
 end
 
-function Avrora:drawPixel(x, y, color)
+function Neptun:drawPixel(x, y, color)
     if x >= 1 and x <= self.resolution.width and
        y >= 1 and y <= self.resolution.height then
-        self.frame_buffer[y][x] = color
+        self.back_buffer[#self.back_buffer+1] = {x, y, color}
     else
         print(string.format("Invalid pixel coordinates (%d, %d)", x, y))
     end
 end
 
-function Avrora:getFrameBuffer()
+function Neptun:getFrameBuffer()
     return self.frame_buffer
 end
 
-function Avrora:getInfo()
+function Neptun:getInfo()
     return {
         model = self.model,
         memory = string.format("%dMB %s (%d-bit)", 
@@ -319,4 +302,4 @@ function Avrora:getInfo()
     }
 end
 
-return Avrora
+return Neptun

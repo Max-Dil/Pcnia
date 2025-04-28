@@ -60,17 +60,14 @@ function OC:init(data)
     data.processor:setGPU(GPU)
     MB.gpu = GPU
     MB.monitor = MONITOR
+    PSU.monitor = MONITOR
     HDD = data.disk:init(MB)
     MB:attachStorage(HDD)
     MB:addInterrupt("TIMER", {interval = 1})
 
     CPU.updateComponents = function (dt)
-        PSU:update(dt)
-        MB:update(dt)
-        RAM:update(dt)
-        COOLER:update(dt)
         GPU:update(dt)
-        MONITOR:update(dt)
+        RAM:update(dt)
         HDD:update(dt)
     end
 
@@ -175,6 +172,10 @@ end
 
 function OC:update(dt)
     CPU:update(dt)
+    COOLER:update(dt)
+    MONITOR:update(dt)
+    PSU:update(dt)
+    MB:update(dt)
 end
 
 function OC:draw()

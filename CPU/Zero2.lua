@@ -274,6 +274,8 @@ local DualCoreProcessor = {
     cpuLoad = 0,          -- Общая загрузка CPU в %
     performanceFactor = 1, -- Общий фактор производительности
     threadLoad = {},       -- Нагрузка по потокам
+
+    input_current = 15,
 }
 
 function DualCoreProcessor:init()
@@ -476,6 +478,7 @@ function DualCoreProcessor:tick()
 end
 
 function DualCoreProcessor:update(dt)
+    if self.input_current < math.min(self.powerUsage, self.maxPowerUsage) then self.input_current = 0 return end
     self.lastTime = love.timer.getTime()
     
     self:autoBoostClock()

@@ -2,6 +2,8 @@
 local Swipan = {
     model = "Swipan-X1",
     version = "1.2",
+
+    input_current = 15,
     
     coolingPower = 45,        -- Максимальная мощность охлаждения (Вт/°C)
     baseNoiseLevel = 25,      -- Уровень шума в дБ на минимальных оборотах
@@ -98,6 +100,7 @@ function Swipan:getPowerConsumption()
 end
 
 function Swipan:update(dt)
+    if self.input_current < self:getPowerConsumption() then self.input_current = 0 return end
     self:updateFanSpeed()
     self:applyCooling(dt)
 end

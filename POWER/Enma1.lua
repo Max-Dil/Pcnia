@@ -19,7 +19,11 @@ local Enma1 = {
     motherboard = nil,
 
     powerDrawHistory = {},
-    maxHistorySize = 60
+    maxHistorySize = 60,
+
+    maxTok = 100,
+
+    is_lomka = false,
 }
 
 function Enma1:init(motherboard)
@@ -63,6 +67,8 @@ function Enma1:deliverPower(rail, requiredWatts)
         self.minTemperature,
         self.temperature + (actualPower * 0.1 - self.fanSpeed * 0.05)
     )
+
+    self.temperature = self.temperature + (100 - self.maxTok)/100
     
     self:updateCooling()
 
@@ -85,31 +91,58 @@ function Enma1:updateCooling()
 end
 
 function Enma1:update(dt)
+    if self.is_lomka then return end
+    local maxTok = self.maxPower
     local cpuPowerNeeded = math.min(self.motherboard.cpu.powerUsage, self.motherboard.cpu.maxPowerUsage)
+    maxTok = maxTok - cpuPowerNeeded
+    if maxTok > 0 then
+        self.motherboard.cpu.input_current = cpuPowerNeeded
+    end
 
     local coolerPower = 0
     if self.motherboard.cooler then
         coolerPower = self.motherboard.cooler:getPowerConsumption()
+        maxTok = maxTok - coolerPower
+        if maxTok > 0 then
+            self.motherboard.cooler.input_current = coolerPower
+        end
     end
 
     local ramPower = 0
     if self.motherboard.memoryController and #self.motherboard.memoryController.memoryModules > 0 then
         ramPower = self.motherboard.memoryController.memoryModules[1]:getPowerConsumption()
+        maxTok = maxTok - ramPower
+        if maxTok > 0 then
+            self.motherboard.memoryController.input_current = ramPower
+        end
     end
 
     local gpuPower = 0
     if self.motherboard.gpu then
         gpuPower = self.motherboard.gpu:getPowerConsumption()
+        maxTok = maxTok - gpuPower
+        if maxTok > 0 then
+            self.motherboard.gpu.input_current = gpuPower
+        end
     end
 
     local monitorPower = 0
     if self.monitor then
         monitorPower = self.motherboard.monitor:getPowerConsumption()
+        maxTok = maxTok - monitorPower
+        if maxTok > 0 then
+            self.monitor.input_current = monitorPower
+        end
     end
 
     local hddPower = 0
     for i = 1, #self.motherboard.storages, 1 do
-        hddPower = hddPower + self.motherboard.storages[i]:getPowerConsumption()
+        local hhdP = self.motherboard.storages[i]:getPowerConsumption()
+        hddPower = hddPower + hhdP
+        maxTok = maxTok - hhdP
+        if maxTok > 0 then
+            self.motherboard.storages[i].input_current = hhdP
+        end
     end
     local hdd12v = hddPower * 0.7
     local hdd5v = hddPower * 0.3
@@ -127,6 +160,24 @@ function Enma1:update(dt)
             self.motherboard.cpu.minClockSpeed,
             self.motherboard.cpu.currentClockSpeed * 0.9
         )
+    end
+
+    self.maxTok = maxTok
+    if maxTok < 0 then
+        print("[Enma1] Critical energy")
+        if math.random(1, 100) == 1 then
+            self.is_lomka = true
+            self.motherboard.gpu.input_current = 0
+            self.monitor.input_current = 0
+            self.motherboard.memoryController.input_current = 0
+            self.motherboard.cooler.input_current = 0
+            self.motherboard.cpu.input_current = 0
+            for i = 1, #self.motherboard.storages, 1 do
+                self.motherboard.storages[i].input_current = 0
+            end
+            self.monitor:clear()
+            print("[Enma1] Block rip")
+        end
     end
 end
 

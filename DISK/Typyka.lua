@@ -46,7 +46,9 @@ local Typyka = {
         temperatureChange = {}
     },
 
-    motherboard = nil
+    motherboard = nil,
+
+    input_current = 15
 }
 
 function Typyka:addEventListener(eventType, callback)
@@ -270,6 +272,7 @@ function Typyka:getPowerConsumption()
 end
 
 function Typyka:update(dt)
+    if self.input_current < self:getPowerConsumption() then self.input_current = 0 return end
     self:manageSpinning(dt)
     self:manageTemperature(dt)
     self:calculateWear(dt)

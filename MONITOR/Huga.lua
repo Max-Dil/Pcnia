@@ -10,7 +10,9 @@ local Huga = {
     isOn = true,
     brightness = 1.0,    -- 0.0 (мин) до 1.0 (макс)
     contrast = 1.0,      -- 0.5 (мин) до 2.0 (макс)
-    backlightLevel = 0.8 -- Уровень подсветки (0-1)
+    backlightLevel = 0.8, -- Уровень подсветки (0-1)
+
+    input_current = 30
 }
 
 function Huga:setBrightness(level)
@@ -68,6 +70,7 @@ function Huga:clear()
 end
 
 function Huga:update(dt)
+    if self.input_current < self:getPowerConsumption() then self.input_current = 0 return end
     if self.temperature > 25 then
         self.temperature = self.temperature - dt * 0.5
     end
