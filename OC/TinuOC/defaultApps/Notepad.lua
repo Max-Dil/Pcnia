@@ -150,31 +150,36 @@ local function saveFileAs()
     end, true)
 end
 
+local function loadFilePath(file)
+    if file then
+        print(file.data)
+        textBuffer = file.data
+        fileName = split(file.path, "/")
+        for i=1 , #fileName, 1 do
+            if fileName[i] == "files" then
+                table.remove(fileName, i)
+            else
+                break
+            end
+        end
+        fileName = table.concat(fileName, "/")
+        write(1, textBuffer)
+        scrollOffset = 0
+        cursorPos = 1
+        updateCursorPosition()
+        showStatus("Loaded: "..fileName, 60)
+        updateDisplay()
+    else
+        updateDisplay()
+    end
+end
+
 local function loadFile()
     openFileDialog(function(file)
-        if file then
-            textBuffer = file.data
-            fileName = split(file.path, "/")
-            for i=1 , #fileName, 1 do
-                if fileName[i] == "files" then
-                    table.remove(fileName, i)
-                else
-                    break
-                end
-            end
-            fileName = table.concat(fileName, "/")
-            write(1, textBuffer)
-            scrollOffset = 0
-            cursorPos = 1
-            updateCursorPosition()
-            showStatus("Loaded: "..fileName, 60)
-            updateDisplay()
-        else
-            updateDisplay()
-        end
+        loadFilePath(file)
     end)
 end
-APP.loadFile = loadFile
+APP.loadFilePath = loadFilePath
 
 local function newFile()
     textBuffer = ""

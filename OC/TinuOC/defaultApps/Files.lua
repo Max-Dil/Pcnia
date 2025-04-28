@@ -87,6 +87,31 @@ local fileDialog = {
 }
 
 local openFile = function(data)
+    if data.ext == "app" then
+        APP.hide(true)
+        local fileApp = FILE_SYSTEM:open(data.path, "r", true)
+        fileApp:read(function (appPath)
+            fileApp = FILE_SYSTEM:open(appPath .. "/app.json", "r")
+            fileApp:read(function(appJson)
+                local app = json.decode(appJson)
+
+                if app then
+                    local appIndex = "app_" .. app.name:lower():gsub("[^%w]", "_")
+                    local envApps = RAM:read(2)
+
+                    local appKey = app.name .. ":" .. app.version
+
+                    if envApps[appKey] then
+                        envApps[appKey].show()
+                    else
+                        OC:loadApp(appIndex)
+                    end
+                end
+            end)
+        end)
+        return nil
+    end
+
     if data.ext == "txt" then
         APP.hide(true)
         SLEEP(0.5)
@@ -102,12 +127,64 @@ local openFile = function(data)
                                     
                 if envApps[appKey] then
                     envApps[appKey].show()
+
+                    local APP = envApps[app.name .. ":" .. app.version]
+                    local fileName = split(data.path, "/")
+                    for i=1 , #fileName, 1 do
+                        if fileName[i] == "files" then
+                            table.remove(fileName, i)
+                        else
+                            break
+                        end
+                    end
+                    fileName = table.concat(fileName, "/")
+                    local file = FILE_SYSTEM:open(fileName, "r")
+                    file:read(function(text)
+                        APP.loadFilePath({
+                            path = data.path,
+                            name = data.name,
+                            data = text
+                        })
+                    end)
                 else
-                    OC:loadApp(appIndex)
+                    OC:loadApp(appIndex, function()
+                        ::searchAPP::
+                        envApps = RAM:read(2)
+                        if not envApps[app.name .. ":" .. app.version] then
+                            SLEEP(1)
+                            goto searchAPP
+                        end
+
+                        ::searchLoadFunc::
+                        local APP = envApps[app.name .. ":" .. app.version]
+                        if not APP.loadFilePath then
+                            SLEEP(1)
+                            goto searchLoadFunc
+                        end
+                        local fileName = split(data.path, "/")
+                        for i=1 , #fileName, 1 do
+                            if fileName[i] == "files" then
+                                table.remove(fileName, i)
+                            else
+                                break
+                            end
+                        end
+                        fileName = table.concat(fileName, "/")
+                        local file = FILE_SYSTEM:open(fileName, "r")
+                        file:read(function(text)
+                            APP.loadFilePath({
+                                path = data.path,
+                                name = data.name,
+                                data = text
+                            })
+                        end)
+                    end)
                 end
             end
         end)
+        return nil
     end
+
 end
 
 local drawFileDialog = function()

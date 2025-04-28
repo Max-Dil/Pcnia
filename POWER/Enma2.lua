@@ -164,7 +164,6 @@ function Enma1:update(dt)
 
     self.maxTok = maxTok
     if maxTok < 0 then
-        print(maxTok)
         print("[Enma1] Critical energy")
         if math.random(1, 50) == 1 then
             self.is_lomka = true
