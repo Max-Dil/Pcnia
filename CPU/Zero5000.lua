@@ -1,71 +1,64 @@
+--[[
+Zero5000
+
+Лимитированный 8 битный процессор ранга Gold
+Огромный потенциал, идеальный серверный процессор.
+За счет огромного количества ядер идеально подходит для многопоточных приложений.
+
+Чтобы раскрыть его потенциал нужен блок питания минимум на 1100W
+Так его использование на полной мощности будет не всем по карманам.
+]]
+
 local bit = require("bit")
-local Processor = {
-    model = "Zero1",
-    version = "1.3",
 
-    threads = {},   -- Потоки (корутины)
+local ProcessorCore = {
+    model = "Zero5000",
+    version = "1.0",
+
     currentThread = 1,
-    threadLoad = {}, -- Загрузка каждого потока
-
-    baseClockSpeed = 10,  -- базовая частота (операций в секунду)
-    currentClockSpeed = 10,
-    clockAccumulator = 0,
-
-    autoBoost = true,
-    maxClockSpeed = 20,   -- максимальная частота при разгоне
-    minClockSpeed = 1,    -- минимальная частота при троттлинге
-    boostThreshold = 0.7,   -- порог нагрузки для разгона
-    throttleThreshold = 0.9, -- порог для троттлинга
-
-    powerUsage = 0,         -- текущее энергопотребление
-    maxPowerUsage = 5,    -- максимальное энергопотребление
-    TPD = 0,               -- тепловыделение (Thermal Design Power)
-    maxTPD = 2,           -- максимальное тепловыделение
-    coolingRate = 0.5,     -- скорость охлаждения
-    heatingRate = 0.8,     -- скорость нагрева
-    thermalThrottle = false, -- флаг троттлинга
-
-    lastTime = 0,
-    cpuLoad = 0,          -- Загрузка CPU в %
-    performanceFactor = 1, -- Фактор производительности (0-1)
-
-    input_current = 10,
+    threads = {},
 }
 
-function Processor:applyLoadDelay()
+function ProcessorCore:init()
+    self.gpu = nil
+end
+
+function ProcessorCore:applyLoadDelay()
     if self.performanceFactor < 0.3 then
         local delay = (1 - self.performanceFactor) * 0.1
         local start = love.timer.getTime()
         while (love.timer.getTime() - start) < delay do end
     end
 end
+function ProcessorCore:updatePerformanceFactor(cpuLoad, thermalFactor)
+    local loadFactor = 1 - math.min(1, #self.threads / 8)
+    self.performanceFactor = math.min(loadFactor, thermalFactor)
 
-function Processor:init()
-    self.currentClockSpeed = self.baseClockSpeed
-    self.powerUsage = 0
-    self.TPD = 0
-    self.thermalThrottle = false
-    self.gpu = nil
-    self.cpuLoad = 0
-    self.performanceFactor = 1
+    if cpuLoad > 80 then
+        self.performanceFactor = self.performanceFactor * 0.8
+    end
+    
+    self.performanceFactor = math.max(0.1, self.performanceFactor)
 end
 
-function Processor:DRW(x, y, r, g, b)
+function ProcessorCore:DRW(x, y, r, g, b)
     self:applyLoadDelay()
     if self.gpu then
         self.gpu:drawPixel(x, y, {r, g, b})
     end
 end
-function Processor:DTX(x, y, text, color, scale)
+function ProcessorCore:DTX(x, y, text, color, scale)
     self:applyLoadDelay()
     if self.gpu then
-        if self.gpu.driver == "Unakoda" then
-            self.gpu:drawText(x, y, text, color, scale)
-        else
+        if self.gpu then
+            if self.gpu.driver == "Unakoda" then
+                self.gpu:drawText(x, y, text, color, scale)
+            else
+            end
         end
     end
 end
-function Processor:DRE(x, y, width, height, color)
+function ProcessorCore:DRE(x, y, width, height, color)
     self:applyLoadDelay()
     if self.gpu then
         if self.gpu then
@@ -76,7 +69,7 @@ function Processor:DRE(x, y, width, height, color)
         end
     end
 end
-function Processor:DRM(x, y, data)
+function ProcessorCore:DRM(x, y, data)
     self:applyLoadDelay()
     if self.gpu then
         if self.gpu then
@@ -88,7 +81,7 @@ function Processor:DRM(x, y, data)
     end
 end
 
-function Processor:SLEEP(seconds)
+function ProcessorCore:SLEEP(seconds)
     self:applyLoadDelay()
     local start = self.lastTime or love.timer.getTime()
     while (love.timer.getTime() - start) < seconds do
@@ -96,42 +89,7 @@ function Processor:SLEEP(seconds)
     end
 end
 
-function Processor:setGPU(gpu)
-    self.gpu = gpu
-end
-
-function Processor:updatePerformanceFactor()
-    local loadFactor = 1 - math.min(1, #self.threads / 8)
-    local thermalFactor = 1 - math.min(1, self.TPD / self.maxTPD)
-    
-    self.performanceFactor = math.min(loadFactor, thermalFactor)
-
-    if self.cpuLoad > 80 then
-        self.performanceFactor = self.performanceFactor * 0.8
-    end
-    
-    self.performanceFactor = math.max(0.1, self.performanceFactor)
-end
-
-function Processor:updateCpuLoad()
-    local activeThreads = 0
-    for i, thread in ipairs(self.threads) do
-        if coroutine.status(thread) ~= "dead" then
-            activeThreads = activeThreads + 1
-        end
-    end
-    
-    local maxThreads = 16
-    local clockFactor = self.currentClockSpeed / self.baseClockSpeed
-    self.cpuLoad = math.min(100, (activeThreads / maxThreads) * 100 * clockFactor)
-end
-
-function Processor:addThread(func)
-    if self:calculatePotentialPower(#self.threads + 1) > self.maxPowerUsage then
-        print("Warning: Adding this thread would exceed power limits!")
-        return false
-    end
-
+function ProcessorCore:addThread(func)
     local co = coroutine.create(function()
         local A, X, Y, SR, SP = 0, 0, 0, 0, 128
         local env = {
@@ -255,34 +213,150 @@ function Processor:addThread(func)
     end)
 
     table.insert(self.threads, co)
-    self:updatePowerUsage()
     return true, co
 end
 
-function Processor:calculatePotentialPower(numThreads)
-    local load = numThreads / 8
-    return self.maxPowerUsage * load * (self.currentClockSpeed / self.baseClockSpeed)
+local Processor = {
+    model = "Zero5000",
+    version = "1.0",
+    
+    cores = {},
+    currentCore = 1,
+    countCores = 200,
+
+    baseClockSpeed = 10,
+    currentClockSpeed = 10,
+    clockAccumulator = 0,
+    
+    autoBoost = true,
+    maxClockSpeed = 20,
+    minClockSpeed = 1,
+    boostThreshold = 0.7,
+    throttleThreshold = 0.9,
+    
+    powerUsage = 0,
+    maxPowerUsage = 1000,
+    TPD = 0,
+    maxTPD = 400,
+    coolingRate = 0.2,
+    heatingRate = 0.6,
+    thermalThrottle = false,
+    
+    lastTime = 0,
+
+    motherboard = nil,
+
+    cpuLoad = 0,
+    performanceFactor = 1,
+    threadLoad = {},
+
+    input_current = 1000,
+}
+
+function Processor:init()
+    for i = 1, self.countCores, 1 do
+        self.cores[i] = setmetatable({}, {__index = ProcessorCore})
+        self.cores[i]:init()
+    end
+
+    self.currentClockSpeed = self.baseClockSpeed
+    self.powerUsage = 0
+    self.TPD = 0
+    self.thermalThrottle = false
+    self.gpu = nil
+    self.cpuLoad = 0
+    self.performanceFactor = 1
+end
+
+function Processor:setGPU(gpu)
+    self.gpu = gpu
+    for i = 1, self.countCores, 1 do
+        self.cores[i].gpu = gpu
+    end
 end
 
 function Processor:setMotherboard(motherboard)
     self.motherboard = motherboard
+    for i = 1, self.countCores, 1 do
+        self.cores[i].motherboard = motherboard
+    end
+end
+
+function Processor:updateCpuLoad()
+    local activeThreads = 0
+    for _, core in ipairs(self.cores) do
+        for _, thread in ipairs(core.threads) do
+            if coroutine.status(thread) ~= "dead" then
+                activeThreads = activeThreads + 1
+            end
+        end
+    end
+    
+    local maxThreads = 8 * self.countCores
+    local clockFactor = self.currentClockSpeed / self.baseClockSpeed
+    self.cpuLoad = math.min(100, (activeThreads / maxThreads) * 100 * clockFactor)
+end
+
+function Processor:updatePerformance()
+    local thermalFactor = 1 - math.min(1, self.TPD / self.maxTPD)
+
+    for _, core in ipairs(self.cores) do
+        core:updatePerformanceFactor(self.cpuLoad, thermalFactor)
+    end
+
+    self.performanceFactor = (self.cores[1].performanceFactor + self.cores[2].performanceFactor) / 2
+end
+
+function Processor:addThread(func)
+    local coreToUse = (#self.cores[1].threads <= #self.cores[2].threads) and 1 or 2
+    
+    if self:calculatePotentialPower(#self.cores[1].threads + #self.cores[2].threads + 1) > self.maxPowerUsage then
+        print("Warning: Adding this thread would exceed power limits!")
+        return false
+    end
+    
+    local success, co = self.cores[coreToUse]:addThread(func)
+    if success then
+        self.threadLoad[co] = 0
+        self:updatePowerUsage()
+        self:updateCpuLoad()
+    end
+    return success, co
 end
 
 function Processor:removeThread(index)
-    table.remove(self.threads, index)
-    self:updatePowerUsage()
-end
-
-function Processor:searchThread(co)
-    for i = 1, #self.threads do
-        if self.threads[i] == co then
-            return i
+    local totalThreads = 0
+    for coreIndex, core in ipairs(self.cores) do
+        local numThreadsInCore = #core.threads
+        if index <= totalThreads + numThreadsInCore then
+            local relativeIndex = index - totalThreads
+            table.remove(core.threads, relativeIndex)
+            self:updatePowerUsage()
+            return
+        else
+            totalThreads = totalThreads + numThreadsInCore
         end
     end
 end
 
+function Processor:searchThread(co)
+    for core = 1, #self.cores, 1 do
+        for i = 1, #self.cores[core].threads do
+            if self.cores[core].threads[i] == co then
+                return i, core
+            end
+        end
+    end
+end
+
+function Processor:calculatePotentialPower(numThreads)
+    local load = numThreads / (8 * self.countCores)
+    return self.maxPowerUsage * load * (self.currentClockSpeed / self.baseClockSpeed)
+end
+
 function Processor:updatePowerUsage()
-    local load = #self.threads / 8
+    local totalThreads = #self.cores[1].threads + #self.cores[2].threads
+    local load = totalThreads / (8 * self.countCores)
     local newPower = self.maxPowerUsage * load * (self.currentClockSpeed / self.baseClockSpeed)
 
     if newPower > self.maxPowerUsage then
@@ -324,7 +398,11 @@ function Processor:autoBoostClock()
         return
     end
 
-    local load = #self.threads / 8
+    local totalThreads = 0
+    for i = 1, #self.cores, 1 do
+        totalThreads = totalThreads + #self.cores[i].threads
+    end
+    local load = totalThreads / (8 * self.countCores)
     if load > self.boostThreshold and self.TPD < self.maxTPD * 0.8 then
         self.currentClockSpeed = math.min(
             self.maxClockSpeed,
@@ -339,50 +417,52 @@ function Processor:autoBoostClock()
 end
 
 function Processor:tick()
-    if #self.threads == 0 then return end
-
-    self:updatePerformanceFactor()
+    self:updatePerformance()
     self:updateCpuLoad()
-
+    
     if self.performanceFactor < 0.5 then
         local delay = (0.5 - self.performanceFactor) * 0.05
         local start = love.timer.getTime()
         while (love.timer.getTime() - start) < delay do end
     end
 
-    local thread = self.threads[self.currentThread]
-    if not thread then
-        self.currentThread = self.currentThread % #self.threads + 1
-        return
-    end
+    for _, core in ipairs(self.cores) do
+        if #core.threads > 0 then
+            local thread = core.threads[core.currentThread]
+            if not thread then
+                core.currentThread = core.currentThread % #core.threads + 1
+                goto continue
+            end
 
-    if coroutine.status(thread) == "dead" then
-        table.remove(self.threads, self.currentThread)
-        self.threadLoad[thread] = nil
-        self:updatePowerUsage()
-        self:updateCpuLoad()
-        return
-    end
+            if coroutine.status(thread) == "dead" then
+                table.remove(core.threads, core.currentThread)
+                self.threadLoad[thread] = nil
+                self:updatePowerUsage()
+                self:updateCpuLoad()
+                goto continue
+            end
 
-    self.threadLoad[thread] = (self.threadLoad[thread] or 0) + 1
-    
-    local ok, err = coroutine.resume(thread)
-    if not ok then
-        print("Thread error:", err)
-        table.remove(self.threads, self.currentThread)
-        self.threadLoad[thread] = nil
-        self:updatePowerUsage()
-        self:updateCpuLoad()
-        return
-    end
+            self.threadLoad[thread] = (self.threadLoad[thread] or 0) + 1
+            
+            local ok, err = coroutine.resume(thread)
+            if not ok then
+                print("Thread error:", err)
+                table.remove(core.threads, core.currentThread)
+                self.threadLoad[thread] = nil
+                self:updatePowerUsage()
+                self:updateCpuLoad()
+            end
 
-    self.currentThread = self.currentThread % #self.threads + 1
+            core.currentThread = core.currentThread % #core.threads + 1
+        end
+        ::continue::
+    end
 end
 
 function Processor:update(dt)
     if self.input_current < math.min(self.powerUsage, self.maxPowerUsage) then self.input_current = 0 return end
     self.lastTime = love.timer.getTime()
-
+    
     self:autoBoostClock()
     self:updatePowerUsage()
     self:updateTPD()
@@ -403,6 +483,12 @@ function Processor:update(dt)
 end
 
 function Processor:getInfo()
+    local threads = 0
+    for i = 1, #self.cores, 1 do
+        threads = threads + #self.cores[i].threads
+    end
+    local activeThreads = self:countActiveThreads()
+    
     return {
         clockSpeed = self.currentClockSpeed,
         baseClockSpeed = self.baseClockSpeed,
@@ -412,8 +498,8 @@ function Processor:getInfo()
         maxPowerUsage = self.maxPowerUsage,
         TPD = self.TPD,
         maxTPD = self.maxTPD,
-        threads = #self.threads,
-        activeThreads = self:countActiveThreads(),
+        threads = threads,
+        activeThreads = activeThreads,
         autoBoost = self.autoBoost,
         thermalThrottle = self.thermalThrottle,
         cpuLoad = self.cpuLoad,
@@ -424,9 +510,11 @@ end
 
 function Processor:countActiveThreads()
     local count = 0
-    for _, thread in ipairs(self.threads) do
-        if coroutine.status(thread) ~= "dead" then
-            count = count + 1
+    for _, core in ipairs(self.cores) do
+        for _, thread in ipairs(core.threads) do
+            if coroutine.status(thread) ~= "dead" then
+                count = count + 1
+            end
         end
     end
     return count
@@ -435,14 +523,24 @@ end
 function Processor:getThreadLoads()
     local loads = {}
     for thread, load in pairs(self.threadLoad) do
-        if coroutine.status(thread) ~= "dead" then
+        if type(thread) == "thread" and coroutine.status(thread) ~= "dead" then
             loads[#loads+1] = {
                 thread = tostring(thread),
-                load = load
+                load = load,
+                core = (self:threadBelongsToCore(thread, 1) and 1 or 2)
             }
         end
     end
     return loads
+end
+
+function Processor:threadBelongsToCore(thread, coreIndex)
+    for _, t in ipairs(self.cores[coreIndex].threads) do
+        if t == thread then
+            return true
+        end
+    end
+    return false
 end
 
 return Processor

@@ -1,38 +1,63 @@
+--[[
+Ore - ограненные камни, спасение новых пользователей
+]]
+
 local bit = require("bit")
 local Processor = {
-    model = "Zero1",
-    version = "1.3",
+    model = "Ore",
+    version = "1.0",
 
-    threads = {},   -- Потоки (корутины)
+    registers = {
+        AX = 0,  -- 16-битный аккумулятор
+        BX = 0,  -- Базовый регистр
+        CX = 0,  -- Счетчик
+        DX = 0,  -- Данные
+        SI = 0,  -- Source Index
+        DI = 0,  -- Destination Index
+        BP = 0,  -- Base Pointer
+        SP = 0xFFFF,  -- Stack Pointer (инициализирован в верхушку стека)
+        IP = 0,  -- Instruction Pointer
+        FLAGS = 0, 
+    },
+
+    FLAGS_MASK = {
+        CARRY      = 0x0001,
+        ZERO       = 0x0002,
+        SIGN       = 0x0004,
+        OVERFLOW   = 0x0008,
+        INTERRUPT  = 0x0020,
+        DIRECTION  = 0x0400,
+    },
+
+    threads = {},
     currentThread = 1,
-    threadLoad = {}, -- Загрузка каждого потока
+    threadLoad = {},
 
-    baseClockSpeed = 10,  -- базовая частота (операций в секунду)
-    currentClockSpeed = 10,
+    baseClockSpeed = 80,
+    currentClockSpeed = 80,
     clockAccumulator = 0,
 
     autoBoost = true,
-    maxClockSpeed = 20,   -- максимальная частота при разгоне
-    minClockSpeed = 1,    -- минимальная частота при троттлинге
-    boostThreshold = 0.7,   -- порог нагрузки для разгона
-    throttleThreshold = 0.9, -- порог для троттлинга
+    maxClockSpeed = 100,
+    minClockSpeed = 5,
+    boostThreshold = 0.7,
+    throttleThreshold = 0.9,
 
-    powerUsage = 0,         -- текущее энергопотребление
-    maxPowerUsage = 5,    -- максимальное энергопотребление
-    TPD = 0,               -- тепловыделение (Thermal Design Power)
-    maxTPD = 2,           -- максимальное тепловыделение
-    coolingRate = 0.5,     -- скорость охлаждения
-    heatingRate = 0.8,     -- скорость нагрева
-    thermalThrottle = false, -- флаг троттлинга
+    powerUsage = 0,
+    maxPowerUsage = 20,
+    TPD = 2,
+    maxTPD = 15,
+    coolingRate = 0.6,
+    heatingRate = 0.9,
 
     lastTime = 0,
-    cpuLoad = 0,          -- Загрузка CPU в %
-    performanceFactor = 1, -- Фактор производительности (0-1)
+    cpuLoad = 0,
+    performanceFactor = 1,
 
-    input_current = 10,
+    input_current = 20,
 }
 
-function Processor:applyLoadDelay()
+Processor.applyLoadDelay = function(self)
     if self.performanceFactor < 0.3 then
         local delay = (1 - self.performanceFactor) * 0.1
         local start = love.timer.getTime()
@@ -40,7 +65,7 @@ function Processor:applyLoadDelay()
     end
 end
 
-function Processor:init()
+Processor.init = function(self)
     self.currentClockSpeed = self.baseClockSpeed
     self.powerUsage = 0
     self.TPD = 0
@@ -48,47 +73,47 @@ function Processor:init()
     self.gpu = nil
     self.cpuLoad = 0
     self.performanceFactor = 1
+    for k, v in pairs(self.registers) do
+        self.registers[k] = 0
+    end
+    self.registers.SP = 0xFFFF
 end
 
-function Processor:DRW(x, y, r, g, b)
+Processor.DRW = function(self, x, y, r, g, b)
     self:applyLoadDelay()
     if self.gpu then
         self.gpu:drawPixel(x, y, {r, g, b})
     end
 end
-function Processor:DTX(x, y, text, color, scale)
+
+Processor.DTX = function(self, x, y, text, color, scale)
     self:applyLoadDelay()
     if self.gpu then
         if self.gpu.driver == "Unakoda" then
             self.gpu:drawText(x, y, text, color, scale)
-        else
-        end
-    end
-end
-function Processor:DRE(x, y, width, height, color)
-    self:applyLoadDelay()
-    if self.gpu then
-        if self.gpu then
-            if self.gpu.driver == "Unakoda" then
-                self.gpu:drawRectangle(x, y, width, height, color)
-            else
-            end
-        end
-    end
-end
-function Processor:DRM(x, y, data)
-    self:applyLoadDelay()
-    if self.gpu then
-        if self.gpu then
-            if self.gpu.driver == "Unakoda" then
-                self.gpu:drawImage(x, y, data)
-            else
-            end
         end
     end
 end
 
-function Processor:SLEEP(seconds)
+Processor.DRE = function(self, x, y, width, height, color)
+    self:applyLoadDelay()
+    if self.gpu then
+        if self.gpu.driver == "Unakoda" then
+            self.gpu:drawRectangle(x, y, width, height, color)
+        end
+    end
+end
+
+Processor.DRM = function(self, x, y, data)
+    self:applyLoadDelay()
+    if self.gpu then
+        if self.gpu.driver == "Unakoda" then
+            self.gpu:drawImage(x, y, data)
+        end
+    end
+end
+
+Processor.SLEEP = function(self, seconds)
     self:applyLoadDelay()
     local start = self.lastTime or love.timer.getTime()
     while (love.timer.getTime() - start) < seconds do
@@ -96,157 +121,164 @@ function Processor:SLEEP(seconds)
     end
 end
 
-function Processor:setGPU(gpu)
-    self.gpu = gpu
-end
-
-function Processor:updatePerformanceFactor()
-    local loadFactor = 1 - math.min(1, #self.threads / 8)
-    local thermalFactor = 1 - math.min(1, self.TPD / self.maxTPD)
-    
-    self.performanceFactor = math.min(loadFactor, thermalFactor)
-
-    if self.cpuLoad > 80 then
-        self.performanceFactor = self.performanceFactor * 0.8
+Processor.setFlag = function(self, flag, value)
+    if value then
+        self.registers.FLAGS = bit.bor(self.registers.FLAGS, flag)
+    else
+        self.registers.FLAGS = bit.band(self.registers.FLAGS, bit.bnot(flag))
     end
-    
-    self.performanceFactor = math.max(0.1, self.performanceFactor)
 end
 
-function Processor:updateCpuLoad()
-    local activeThreads = 0
-    for i, thread in ipairs(self.threads) do
-        if coroutine.status(thread) ~= "dead" then
-            activeThreads = activeThreads + 1
-        end
-    end
-    
-    local maxThreads = 16
-    local clockFactor = self.currentClockSpeed / self.baseClockSpeed
-    self.cpuLoad = math.min(100, (activeThreads / maxThreads) * 100 * clockFactor)
+Processor.getFlag = function(self, flag)
+    return bit.band(self.registers.FLAGS, flag) ~= 0
 end
 
-function Processor:addThread(func)
+Processor.add16 = function(self, a, b)
+    local result = a + b
+    self:setFlag(self.FLAGS_MASK.CARRY, result > 0xFFFF)
+    self:setFlag(self.FLAGS_MASK.ZERO, bit.band(result, 0xFFFF) == 0)
+    self:setFlag(self.FLAGS_MASK.SIGN, bit.band(result, 0x8000) ~= 0)
+    self:setFlag(self.FLAGS_MASK.OVERFLOW, (bit.bxor(a, b) == 0) and (bit.bxor(a, result) ~= 0))
+    return bit.band(result, 0xFFFF)
+end
+
+Processor.sub16 = function(self, a, b)
+    local result = a - b
+    self:setFlag(self.FLAGS_MASK.CARRY, a < b)
+    self:setFlag(self.FLAGS_MASK.ZERO, bit.band(result, 0xFFFF) == 0)
+    self:setFlag(self.FLAGS_MASK.SIGN, bit.band(result, 0x8000) ~= 0)
+    self:setFlag(self.FLAGS_MASK.OVERFLOW, (bit.bxor(a, b) ~= 0) and (bit.bxor(a, result) ~= 0))
+    return bit.band(result, 0xFFFF)
+end
+
+Processor.addThread = function(self, func)
     if self:calculatePotentialPower(#self.threads + 1) > self.maxPowerUsage then
         print("Warning: Adding this thread would exceed power limits!")
         return false
     end
 
     local co = coroutine.create(function()
-        local A, X, Y, SR, SP = 0, 0, 0, 0, 128
+        local regs = {
+            AX = 0, BX = 0, CX = 0, DX = 0,
+            SI = 0, DI = 0, BP = 0, SP = 0xFFFF,
+            IP = 0, FLAGS = 0
+        }
+        
         local env = {
+            MOV = function(dest, src)
+                coroutine.yield()
+                self:applyLoadDelay()
+                regs[dest] = src and bit.band(src, 0xFFFF) or regs.AX
+            end,
+
+            ADD = function(a, b)
+                coroutine.yield()
+                self:applyLoadDelay()
+                return self:add16(a or regs.AX, b or 0)
+            end,
+
+            SUB = function(a, b)
+                coroutine.yield()
+                self:applyLoadDelay()
+                return self:sub16(a or regs.AX, b or 0)
+            end,
+
+            AND = function(a, b)
+                coroutine.yield()
+                self:applyLoadDelay()
+                regs.FLAGS = bit.bor(regs.FLAGS, self.FLAGS_MASK.ZERO)
+                return bit.band(a or regs.AX, b or 0xFFFF)
+            end,
+
+            OR = function(a, b)
+                coroutine.yield()
+                self:applyLoadDelay()
+                regs.FLAGS = bit.bor(regs.FLAGS, self.FLAGS_MASK.ZERO)
+                return bit.bor(a or regs.AX, b or 0xFFFF)
+            end,
+
+            XOR = function(a, b)
+                coroutine.yield()
+                self:applyLoadDelay()
+                regs.FLAGS = bit.bor(regs.FLAGS, self.FLAGS_MASK.ZERO)
+                return bit.bxor(a or regs.AX, b or 0xFFFF)
+            end,
+
+            NOT = function(a)
+                coroutine.yield()
+                self:applyLoadDelay()
+                return bit.bnot(a or regs.AX) % 0x10000
+            end,
+
+            SHL = function(a, b)
+                coroutine.yield()
+                self:applyLoadDelay()
+                return bit.lshift(a or regs.AX, b or 1) % 0x10000
+            end,
+
+            SHR = function(a, b)
+                coroutine.yield()
+                self:applyLoadDelay()
+                return bit.rshift(a or regs.AX, b or 1) % 0x10000
+            end,
+
             LDA = function(v)
                 coroutine.yield()
                 self:applyLoadDelay()
-                A = v
+                regs.AX = v
             end,
             STA = function(a)
                 coroutine.yield()
                 self:applyLoadDelay()
-                self.motherboard:writeMemory(a, A)
+                self.motherboard:writeMemory(a, regs.AX)
             end,
             LDX = function(v)
                 coroutine.yield()
                 self:applyLoadDelay()
-                X = v
+                regs.BX = v
             end,
             LDY = function(v)
                 coroutine.yield()
                 self:applyLoadDelay()
-                Y = v
+                regs.CX = v
             end,
             STX = function(a)
                 coroutine.yield()
                 self:applyLoadDelay()
-                self.motherboard:writeMemory(a, X)
+                self.motherboard:writeMemory(a, regs.BX)
             end,
             STY = function (a)
                 coroutine.yield()
                 self:applyLoadDelay()
-                self.motherboard:writeMemory(a, Y)
+                self.motherboard:writeMemory(a, regs.CX)
             end,
-            ADD = function(a, b)
+
+            getReg = function(name)
                 coroutine.yield()
-                self:applyLoadDelay()
-                return (a or A) + (b or 0)
+                return regs[name] or 0
             end,
-            SUB = function(a, b)
+            setReg = function(name, value)
                 coroutine.yield()
-                self:applyLoadDelay()
-                return (a or A) - (b or 0)
+                regs[name] = value
             end,
-            MUL = function(a, b)
-                coroutine.yield()
-                self:applyLoadDelay()
-                return (a or A) * (b or 1)
-            end,
-            DIV = function(a, b) coroutine.yield()
-                self:applyLoadDelay()
-                return (a or A) / (b or 1)
-            end,
-            AND = function(a, b) coroutine.yield()
-                self:applyLoadDelay()
-                return bit.band(a or A, b or 0)
-            end,
-            OR = function(a, b) coroutine.yield()
-                self:applyLoadDelay()
-                return bit.bor(a or A, b or 0)
-            end,
-            XOR = function(a, b) coroutine.yield()
-                self:applyLoadDelay()
-                return bit.bxor(a or A, b or 0)
-            end,
-            NOT = function(a) coroutine.yield()
-                self:applyLoadDelay()
-                return bit.bnot(a or A)
-            end,
-            SHL = function(a, b) coroutine.yield()
-                self:applyLoadDelay()
-                return bit.lshift(a or A, b or 1)
-            end,
-            SHR = function(a, b) coroutine.yield()
-                self:applyLoadDelay()
-                return bit.rshift(a or A, b or 1)
-            end,
-            CMP = function(a, b) coroutine.yield()
-                self:applyLoadDelay()
-                local result = (a or A) - (b or 0)
-                if result == 0 then
-                    SR = bit.bor(SR, 0x02)
-                else
-                    SR = bit.band(SR, bit.bnot(0x02))
-                end
-                return result
-            end,
-            PUSH = function(v) coroutine.yield()
-                self:applyLoadDelay()
-                self.motherboard:writeMemory(SP, v or A)
-                SP = SP + 1
-            end,
-            POP = function()
-                coroutine.yield()
-                self:applyLoadDelay()
-                SP = SP - 1
-                return self.motherboard:readMemory(SP)
-            end,
+
             DRW = function(x, y, r, g, b) coroutine.yield() return self:DRW(x, y, r, g, b) end,
             DTX = function(x, y, text, color, scale) coroutine.yield() return self:DTX(x, y, text, color, scale) end,
             DRE = function(x, y, width, height, color) coroutine.yield() return self:DRE(x, y, width, height, color) end,
             DRM = function(x, y, data) coroutine.yield() return self:DRM(x, y, data) end,
             SLEEP = function(s) return self:SLEEP(s) end,
 
-            A = function() coroutine.yield() return A end,
-            X = function() coroutine.yield() return X end,
-            Y = function() coroutine.yield() return Y end,
-            SR = function() coroutine.yield() return SR end,
-            SP = function() coroutine.yield() return SP end,
-
             read = function(addr) coroutine.yield() return self.motherboard:readMemory(addr) end,
             write = function(addr, value) coroutine.yield() return self.motherboard:writeMemory(addr, value) end,
-
-            print = function (...) coroutine.yield() print(...) end,
-            pcall = function (...) coroutine.yield() return pcall(...) end
+            print = function(...) coroutine.yield() print(...) end,
+            pcall = function(...) coroutine.yield() return pcall(...) end
         }
+
+        env.A = function() coroutine.yield() return regs.AX end
+        env.X = function() coroutine.yield() return regs.BX end
+        env.Y = function() coroutine.yield() return regs.CX end
+        env.SR = function() coroutine.yield() return regs.FLAGS end
+        env.SP = function() coroutine.yield() return regs.SP end
 
         setmetatable(env, {__index = _G})
         setfenv(func, env)
@@ -259,8 +291,35 @@ function Processor:addThread(func)
     return true, co
 end
 
+function Processor:updatePerformanceFactor()
+    local loadFactor = 1 - math.min(1, #self.threads / 16)
+    local thermalFactor = 1 - math.min(1, self.TPD / self.maxTPD)
+
+    self.performanceFactor = math.min(loadFactor, thermalFactor)
+
+    if self.cpuLoad > 80 then
+        self.performanceFactor = self.performanceFactor * 0.8
+    end
+
+    self.performanceFactor = math.max(0.1, self.performanceFactor)
+end
+
+function Processor:updateCpuLoad()
+    local activeThreads = 0
+    for i, thread in ipairs(self.threads) do
+        if coroutine.status(thread) ~= "dead" then
+            activeThreads = activeThreads + 1
+        end
+    end
+    
+    local maxThreads = 32
+    local clockFactor = self.currentClockSpeed / self.baseClockSpeed
+    self.cpuLoad = math.min(100, (activeThreads / maxThreads) * 100 * clockFactor)
+end
+
+
 function Processor:calculatePotentialPower(numThreads)
-    local load = numThreads / 8
+    local load = numThreads / 16
     return self.maxPowerUsage * load * (self.currentClockSpeed / self.baseClockSpeed)
 end
 
@@ -282,7 +341,7 @@ function Processor:searchThread(co)
 end
 
 function Processor:updatePowerUsage()
-    local load = #self.threads / 8
+    local load = #self.threads / 16
     local newPower = self.maxPowerUsage * load * (self.currentClockSpeed / self.baseClockSpeed)
 
     if newPower > self.maxPowerUsage then
@@ -292,7 +351,7 @@ function Processor:updatePowerUsage()
         )
         newPower = self.maxPowerUsage
     end
-    
+
     self.powerUsage = newPower
     self:updateTPD()
 end
@@ -365,7 +424,7 @@ function Processor:tick()
     end
 
     self.threadLoad[thread] = (self.threadLoad[thread] or 0) + 1
-    
+
     local ok, err = coroutine.resume(thread)
     if not ok then
         print("Thread error:", err)
@@ -377,6 +436,10 @@ function Processor:tick()
     end
 
     self.currentThread = self.currentThread % #self.threads + 1
+end
+
+function Processor:setGPU(gpu)
+    self.gpu = gpu
 end
 
 function Processor:update(dt)

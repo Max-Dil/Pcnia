@@ -71,7 +71,6 @@ function OC:init(data)
     GPU:setResolution(MONITOR.resolution.width, MONITOR.resolution.height)
 
     CPU.updateComponents = function (dt)
-        GPU:update(dt)
         RAM:update(dt)
         HDD:update(dt)
     end
@@ -137,6 +136,7 @@ end
 
 function OC:update(dt)
     CPU:update(dt)
+    GPU:update(dt)
     COOLER:update(dt)
     MONITOR:update(dt)
     PSU:update(dt)

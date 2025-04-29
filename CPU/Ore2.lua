@@ -1,20 +1,41 @@
---[[
-Ore - ограненные камни, спасение новых пользователей
-]]
-
-
 local bit = require("bit")
 
 local ProcessorCore = {
-    model = "Zero2",
+    model = "Ore Core",
     version = "1.0",
 
+    registers = {
+        AX = 0,  -- 16-bit accumulator
+        BX = 0,  -- Base register
+        CX = 0,  -- Counter
+        DX = 0,  -- Data
+        SI = 0,  -- Source Index
+        DI = 0,  -- Destination Index
+        BP = 0,  -- Base Pointer
+        SP = 0xFFFF,  -- Stack Pointer (initialized to stack top)
+        IP = 0,  -- Instruction Pointer
+        FLAGS = 0, 
+    },
+
+    FLAGS_MASK = {
+        CARRY      = 0x0001,
+        ZERO       = 0x0002,
+        SIGN       = 0x0004,
+        OVERFLOW   = 0x0008,
+        INTERRUPT  = 0x0020,
+        DIRECTION  = 0x0400,
+    },
+
     currentThread = 1,
-    threads = {},   -- Threads (coroutines)
+    threads = {},
 }
 
 function ProcessorCore:init()
     self.gpu = nil
+    for k, v in pairs(self.registers) do
+        self.registers[k] = 0
+    end
+    self.registers.SP = 0xFFFF
 end
 
 function ProcessorCore:applyLoadDelay()
@@ -24,15 +45,35 @@ function ProcessorCore:applyLoadDelay()
         while (love.timer.getTime() - start) < delay do end
     end
 end
-function ProcessorCore:updatePerformanceFactor(cpuLoad, thermalFactor)
-    local loadFactor = 1 - math.min(1, #self.threads / 8)
-    self.performanceFactor = math.min(loadFactor, thermalFactor)
 
-    if cpuLoad > 80 then
-        self.performanceFactor = self.performanceFactor * 0.8
+function ProcessorCore:setFlag(flag, value)
+    if value then
+        self.registers.FLAGS = bit.bor(self.registers.FLAGS, flag)
+    else
+        self.registers.FLAGS = bit.band(self.registers.FLAGS, bit.bnot(flag))
     end
-    
-    self.performanceFactor = math.max(0.1, self.performanceFactor)
+end
+
+function ProcessorCore:getFlag(flag)
+    return bit.band(self.registers.FLAGS, flag) ~= 0
+end
+
+function ProcessorCore:add16(a, b)
+    local result = a + b
+    self:setFlag(self.FLAGS_MASK.CARRY, result > 0xFFFF)
+    self:setFlag(self.FLAGS_MASK.ZERO, bit.band(result, 0xFFFF) == 0)
+    self:setFlag(self.FLAGS_MASK.SIGN, bit.band(result, 0x8000) ~= 0)
+    self:setFlag(self.FLAGS_MASK.OVERFLOW, (bit.bxor(a, b) == 0) and (bit.bxor(a, result) ~= 0))
+    return bit.band(result, 0xFFFF)
+end
+
+function ProcessorCore:sub16(a, b)
+    local result = a - b
+    self:setFlag(self.FLAGS_MASK.CARRY, a < b)
+    self:setFlag(self.FLAGS_MASK.ZERO, bit.band(result, 0xFFFF) == 0)
+    self:setFlag(self.FLAGS_MASK.SIGN, bit.band(result, 0x8000) ~= 0)
+    self:setFlag(self.FLAGS_MASK.OVERFLOW, (bit.bxor(a, b) ~= 0) and (bit.bxor(a, result) ~= 0))
+    return bit.band(result, 0xFFFF)
 end
 
 function ProcessorCore:DRW(x, y, r, g, b)
@@ -41,36 +82,30 @@ function ProcessorCore:DRW(x, y, r, g, b)
         self.gpu:drawPixel(x, y, {r, g, b})
     end
 end
+
 function ProcessorCore:DTX(x, y, text, color, scale)
     self:applyLoadDelay()
     if self.gpu then
-        if self.gpu then
-            if self.gpu.driver == "Unakoda" then
-                self.gpu:drawText(x, y, text, color, scale)
-            else
-            end
+        if self.gpu.driver == "Unakoda" then
+            self.gpu:drawText(x, y, text, color, scale)
         end
     end
 end
+
 function ProcessorCore:DRE(x, y, width, height, color)
     self:applyLoadDelay()
     if self.gpu then
-        if self.gpu then
-            if self.gpu.driver == "Unakoda" then
-                self.gpu:drawRectangle(x, y, width, height, color)
-            else
-            end
+        if self.gpu.driver == "Unakoda" then
+            self.gpu:drawRectangle(x, y, width, height, color)
         end
     end
 end
+
 function ProcessorCore:DRM(x, y, data)
     self:applyLoadDelay()
     if self.gpu then
-        if self.gpu then
-            if self.gpu.driver == "Unakoda" then
-                self.gpu:drawImage(x, y, data)
-            else
-            end
+        if self.gpu.driver == "Unakoda" then
+            self.gpu:drawImage(x, y, data)
         end
     end
 end
@@ -85,120 +120,127 @@ end
 
 function ProcessorCore:addThread(func)
     local co = coroutine.create(function()
-        local A, X, Y, SR, SP = 0, 0, 0, 0, 128
+        local regs = {
+            AX = 0, BX = 0, CX = 0, DX = 0,
+            SI = 0, DI = 0, BP = 0, SP = 0xFFFF,
+            IP = 0, FLAGS = 0
+        }
+        
         local env = {
+            MOV = function(dest, src)
+                coroutine.yield()
+                self:applyLoadDelay()
+                regs[dest] = src and bit.band(src, 0xFFFF) or regs.AX
+            end,
+
+            ADD = function(a, b)
+                coroutine.yield()
+                self:applyLoadDelay()
+                return self:add16(a or regs.AX, b or 0)
+            end,
+
+            SUB = function(a, b)
+                coroutine.yield()
+                self:applyLoadDelay()
+                return self:sub16(a or regs.AX, b or 0)
+            end,
+
+            AND = function(a, b)
+                coroutine.yield()
+                self:applyLoadDelay()
+                regs.FLAGS = bit.bor(regs.FLAGS, self.FLAGS_MASK.ZERO)
+                return bit.band(a or regs.AX, b or 0xFFFF)
+            end,
+
+            OR = function(a, b)
+                coroutine.yield()
+                self:applyLoadDelay()
+                regs.FLAGS = bit.bor(regs.FLAGS, self.FLAGS_MASK.ZERO)
+                return bit.bor(a or regs.AX, b or 0xFFFF)
+            end,
+
+            XOR = function(a, b)
+                coroutine.yield()
+                self:applyLoadDelay()
+                regs.FLAGS = bit.bor(regs.FLAGS, self.FLAGS_MASK.ZERO)
+                return bit.bxor(a or regs.AX, b or 0xFFFF)
+            end,
+
+            NOT = function(a)
+                coroutine.yield()
+                self:applyLoadDelay()
+                return bit.bnot(a or regs.AX) % 0x10000
+            end,
+
+            SHL = function(a, b)
+                coroutine.yield()
+                self:applyLoadDelay()
+                return bit.lshift(a or regs.AX, b or 1) % 0x10000
+            end,
+
+            SHR = function(a, b)
+                coroutine.yield()
+                self:applyLoadDelay()
+                return bit.rshift(a or regs.AX, b or 1) % 0x10000
+            end,
+
             LDA = function(v)
                 coroutine.yield()
                 self:applyLoadDelay()
-                A = v
+                regs.AX = v
             end,
             STA = function(a)
                 coroutine.yield()
                 self:applyLoadDelay()
-                self.motherboard:writeMemory(a, A)
+                self.motherboard:writeMemory(a, regs.AX)
             end,
             LDX = function(v)
                 coroutine.yield()
                 self:applyLoadDelay()
-                X = v
+                regs.BX = v
             end,
             LDY = function(v)
                 coroutine.yield()
                 self:applyLoadDelay()
-                Y = v
+                regs.CX = v
             end,
             STX = function(a)
                 coroutine.yield()
                 self:applyLoadDelay()
-                self.motherboard:writeMemory(a, X)
+                self.motherboard:writeMemory(a, regs.BX)
             end,
             STY = function (a)
                 coroutine.yield()
                 self:applyLoadDelay()
-                self.motherboard:writeMemory(a, Y)
+                self.motherboard:writeMemory(a, regs.CX)
             end,
-            ADD = function(a, b)
+
+            getReg = function(name)
                 coroutine.yield()
-                self:applyLoadDelay()
-                return (a or A) + (b or 0)
+                return regs[name] or 0
             end,
-            SUB = function(a, b)
+            setReg = function(name, value)
                 coroutine.yield()
-                self:applyLoadDelay()
-                return (a or A) - (b or 0)
+                regs[name] = value
             end,
-            MUL = function(a, b)
-                coroutine.yield()
-                self:applyLoadDelay()
-                return (a or A) * (b or 1)
-            end,
-            DIV = function(a, b) coroutine.yield()
-                self:applyLoadDelay()
-                return (a or A) / (b or 1)
-            end,
-            AND = function(a, b) coroutine.yield()
-                self:applyLoadDelay()
-                return bit.band(a or A, b or 0)
-            end,
-            OR = function(a, b) coroutine.yield()
-                self:applyLoadDelay()
-                return bit.bor(a or A, b or 0)
-            end,
-            XOR = function(a, b) coroutine.yield()
-                self:applyLoadDelay()
-                return bit.bxor(a or A, b or 0)
-            end,
-            NOT = function(a) coroutine.yield()
-                self:applyLoadDelay()
-                return bit.bnot(a or A)
-            end,
-            SHL = function(a, b) coroutine.yield()
-                self:applyLoadDelay()
-                return bit.lshift(a or A, b or 1)
-            end,
-            SHR = function(a, b) coroutine.yield()
-                self:applyLoadDelay()
-                return bit.rshift(a or A, b or 1)
-            end,
-            CMP = function(a, b) coroutine.yield()
-                self:applyLoadDelay()
-                local result = (a or A) - (b or 0)
-                if result == 0 then
-                    SR = bit.bor(SR, 0x02)
-                else
-                    SR = bit.band(SR, bit.bnot(0x02))
-                end
-                return result
-            end,
-            PUSH = function(v) coroutine.yield()
-                self:applyLoadDelay()
-                self.motherboard:writeMemory(SP, v or A)
-                SP = SP + 1
-            end,
-            POP = function()
-                coroutine.yield()
-                self:applyLoadDelay()
-                SP = SP - 1
-                return self.motherboard:readMemory(SP)
-            end,
+
             DRW = function(x, y, r, g, b) coroutine.yield() return self:DRW(x, y, r, g, b) end,
             DTX = function(x, y, text, color, scale) coroutine.yield() return self:DTX(x, y, text, color, scale) end,
             DRE = function(x, y, width, height, color) coroutine.yield() return self:DRE(x, y, width, height, color) end,
             DRM = function(x, y, data) coroutine.yield() return self:DRM(x, y, data) end,
             SLEEP = function(s) return self:SLEEP(s) end,
 
-            A = function() coroutine.yield() return A end,
-            X = function() coroutine.yield() return X end,
-            Y = function() coroutine.yield() return Y end,
-            SR = function() coroutine.yield() return SR end,
-            SP = function() coroutine.yield() return SP end,
-
             read = function(addr) coroutine.yield() return self.motherboard:readMemory(addr) end,
             write = function(addr, value) coroutine.yield() return self.motherboard:writeMemory(addr, value) end,
-
-            print = function (...) coroutine.yield() print(...) end,
-            pcall = function (...) coroutine.yield() return pcall(...) end
+            print = function(...) coroutine.yield() print(...) end,
+            pcall = function(...) coroutine.yield() return pcall(...) end
         }
+
+        env.A = function() coroutine.yield() return regs.AX end
+        env.X = function() coroutine.yield() return regs.BX end
+        env.Y = function() coroutine.yield() return regs.CX end
+        env.SR = function() coroutine.yield() return regs.FLAGS end
+        env.SP = function() coroutine.yield() return regs.SP end
 
         setmetatable(env, {__index = _G})
         setfenv(func, env)
@@ -210,45 +252,40 @@ function ProcessorCore:addThread(func)
     return true, co
 end
 
--- Dual-core processor implementation
-local DualCoreProcessor = {
-    model = "Zero2DC",
+local OreDualCore = {
+    model = "Ore2DC",
     version = "1.0",
     
     cores = {},
     currentCore = 1,
-    
-    -- Shared properties
-    baseClockSpeed = 10,
-    currentClockSpeed = 10,
+
+    baseClockSpeed = 80,
+    currentClockSpeed = 80,
     clockAccumulator = 0,
     
     autoBoost = true,
-    maxClockSpeed = 20,
-    minClockSpeed = 1,
+    maxClockSpeed = 100,
+    minClockSpeed = 5,
     boostThreshold = 0.7,
     throttleThreshold = 0.9,
     
     powerUsage = 0,
-    maxPowerUsage = 10,
-    TPD = 0,
-    maxTPD = 4,
-    coolingRate = 0.2,
-    heatingRate = 0.6,
+    maxPowerUsage = 20,
+    TPD = 2,
+    maxTPD = 15,
+    coolingRate = 0.6,
+    heatingRate = 0.9,
     thermalThrottle = false,
     
     lastTime = 0,
-
     motherboard = nil,
-
     cpuLoad = 0,
     performanceFactor = 1,
     threadLoad = {},
-
-    input_current = 15,
+    input_current = 20,
 }
 
-function DualCoreProcessor:init()
+function OreDualCore:init()
     self.cores[1] = setmetatable({}, {__index = ProcessorCore})
     self.cores[2] = setmetatable({}, {__index = ProcessorCore})
     self.cores[1]:init()
@@ -263,19 +300,36 @@ function DualCoreProcessor:init()
     self.performanceFactor = 1
 end
 
-function DualCoreProcessor:setGPU(gpu)
+function OreDualCore:setGPU(gpu)
     self.gpu = gpu
     self.cores[1].gpu = gpu
     self.cores[2].gpu = gpu
 end
 
-function DualCoreProcessor:setMotherboard(motherboard)
+function OreDualCore:setMotherboard(motherboard)
     self.motherboard = motherboard
     self.cores[1].motherboard = motherboard
     self.cores[2].motherboard = motherboard
 end
 
-function DualCoreProcessor:updateCpuLoad()
+function OreDualCore:updatePerformance()
+    local thermalFactor = 1 - math.min(1, self.TPD / self.maxTPD)
+    
+    for _, core in ipairs(self.cores) do
+        local loadFactor = 1 - math.min(1, #core.threads / 32)
+        core.performanceFactor = math.min(loadFactor, thermalFactor)
+        
+        if self.cpuLoad > 80 then
+            core.performanceFactor = core.performanceFactor * 0.8
+        end
+        
+        core.performanceFactor = math.max(0.1, core.performanceFactor)
+    end
+
+    self.performanceFactor = (self.cores[1].performanceFactor + self.cores[2].performanceFactor) / 2
+end
+
+function OreDualCore:updateCpuLoad()
     local activeThreads = 0
     for _, core in ipairs(self.cores) do
         for _, thread in ipairs(core.threads) do
@@ -285,22 +339,12 @@ function DualCoreProcessor:updateCpuLoad()
         end
     end
     
-    local maxThreads = 32
+    local maxThreads = 64
     local clockFactor = self.currentClockSpeed / self.baseClockSpeed
     self.cpuLoad = math.min(100, (activeThreads / maxThreads) * 100 * clockFactor)
 end
 
-function DualCoreProcessor:updatePerformance()
-    local thermalFactor = 1 - math.min(1, self.TPD / self.maxTPD)
-
-    for _, core in ipairs(self.cores) do
-        core:updatePerformanceFactor(self.cpuLoad, thermalFactor)
-    end
-
-    self.performanceFactor = (self.cores[1].performanceFactor + self.cores[2].performanceFactor) / 2
-end
-
-function DualCoreProcessor:addThread(func)
+function OreDualCore:addThread(func)
     local coreToUse = (#self.cores[1].threads <= #self.cores[2].threads) and 1 or 2
     
     if self:calculatePotentialPower(#self.cores[1].threads + #self.cores[2].threads + 1) > self.maxPowerUsage then
@@ -317,7 +361,7 @@ function DualCoreProcessor:addThread(func)
     return success, co
 end
 
-function DualCoreProcessor:removeThread(index)
+function OreDualCore:removeThread(index)
     if index <= #self.cores[1].threads then
         table.remove(self.cores[1].threads, index)
     else
@@ -327,7 +371,7 @@ function DualCoreProcessor:removeThread(index)
     self:updatePowerUsage()
 end
 
-function DualCoreProcessor:searchThread(co)
+function OreDualCore:searchThread(co)
     for i = 1, #self.cores[1].threads do
         if self.cores[1].threads[i] == co then
             return i, 1
@@ -340,14 +384,14 @@ function DualCoreProcessor:searchThread(co)
     end
 end
 
-function DualCoreProcessor:calculatePotentialPower(numThreads)
-    local load = numThreads / 16
+function OreDualCore:calculatePotentialPower(numThreads)
+    local load = numThreads / 32
     return self.maxPowerUsage * load * (self.currentClockSpeed / self.baseClockSpeed)
 end
 
-function DualCoreProcessor:updatePowerUsage()
+function OreDualCore:updatePowerUsage()
     local totalThreads = #self.cores[1].threads + #self.cores[2].threads
-    local load = totalThreads / 16
+    local load = totalThreads / 32
     local newPower = self.maxPowerUsage * load * (self.currentClockSpeed / self.baseClockSpeed)
 
     if newPower > self.maxPowerUsage then
@@ -362,7 +406,7 @@ function DualCoreProcessor:updatePowerUsage()
     self:updateTPD()
 end
 
-function DualCoreProcessor:updateTPD()
+function OreDualCore:updateTPD()
     local targetTPD = self.powerUsage * 0.9
 
     if targetTPD > self.TPD then
@@ -378,7 +422,7 @@ function DualCoreProcessor:updateTPD()
     end
 end
 
-function DualCoreProcessor:autoBoostClock()
+function OreDualCore:autoBoostClock()
     if not self.autoBoost then return end
 
     if self.thermalThrottle then
@@ -390,7 +434,7 @@ function DualCoreProcessor:autoBoostClock()
     end
 
     local totalThreads = #self.cores[1].threads + #self.cores[2].threads
-    local load = totalThreads / 16
+    local load = totalThreads / 32
     if load > self.boostThreshold and self.TPD < self.maxTPD * 0.8 then
         self.currentClockSpeed = math.min(
             self.maxClockSpeed,
@@ -404,7 +448,8 @@ function DualCoreProcessor:autoBoostClock()
     end
 end
 
-function DualCoreProcessor:tick()
+
+function OreDualCore:tick()
     self:updatePerformance()
     self:updateCpuLoad()
     
@@ -447,7 +492,7 @@ function DualCoreProcessor:tick()
     end
 end
 
-function DualCoreProcessor:update(dt)
+function OreDualCore:update(dt)
     if self.input_current < math.min(self.powerUsage, self.maxPowerUsage) then self.input_current = 0 return end
     self.lastTime = love.timer.getTime()
     
@@ -464,13 +509,13 @@ function DualCoreProcessor:update(dt)
         end
         self.clockAccumulator = self.clockAccumulator - ticks / self.currentClockSpeed
 
-        if DualCoreProcessor.updateComponents then
-            DualCoreProcessor.updateComponents(dt)
+        if OreDualCore.updateComponents then
+            OreDualCore.updateComponents(dt)
         end
     end
 end
 
-function DualCoreProcessor:getInfo()
+function OreDualCore:getInfo()
     local core1Threads = #self.cores[1].threads
     local core2Threads = #self.cores[2].threads
     local activeThreads = self:countActiveThreads()
@@ -496,7 +541,7 @@ function DualCoreProcessor:getInfo()
     }
 end
 
-function DualCoreProcessor:countActiveThreads()
+function OreDualCore:countActiveThreads()
     local count = 0
     for _, core in ipairs(self.cores) do
         for _, thread in ipairs(core.threads) do
@@ -508,7 +553,7 @@ function DualCoreProcessor:countActiveThreads()
     return count
 end
 
-function DualCoreProcessor:getThreadLoads()
+function OreDualCore:getThreadLoads()
     local loads = {}
     for thread, load in pairs(self.threadLoad) do
         if type(thread) == "thread" and coroutine.status(thread) ~= "dead" then
@@ -522,7 +567,7 @@ function DualCoreProcessor:getThreadLoads()
     return loads
 end
 
-function DualCoreProcessor:threadBelongsToCore(thread, coreIndex)
+function OreDualCore:threadBelongsToCore(thread, coreIndex)
     for _, t in ipairs(self.cores[coreIndex].threads) do
         if t == thread then
             return true
@@ -531,4 +576,4 @@ function DualCoreProcessor:threadBelongsToCore(thread, coreIndex)
     return false
 end
 
-return DualCoreProcessor
+return OreDualCore
