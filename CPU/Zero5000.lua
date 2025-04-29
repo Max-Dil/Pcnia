@@ -31,7 +31,7 @@ function ProcessorCore:applyLoadDelay()
     end
 end
 function ProcessorCore:updatePerformanceFactor(cpuLoad, thermalFactor)
-    local loadFactor = 1 - math.min(1, #self.threads / 8)
+    local loadFactor = 1 - math.min(1, #self.threads / 64)
     self.performanceFactor = math.min(loadFactor, thermalFactor)
 
     if cpuLoad > 80 then
@@ -256,6 +256,7 @@ local Processor = {
 function Processor:init()
     for i = 1, self.countCores, 1 do
         self.cores[i] = setmetatable({}, {__index = ProcessorCore})
+        self.cores[i].threads = {}
         self.cores[i]:init()
     end
 
@@ -308,14 +309,27 @@ function Processor:updatePerformance()
 end
 
 function Processor:addThread(func)
-    local coreToUse = (#self.cores[1].threads <= #self.cores[2].threads) and 1 or 2
-    
-    if self:calculatePotentialPower(#self.cores[1].threads + #self.cores[2].threads + 1) > self.maxPowerUsage then
+    local minThreads = math.huge
+    local bestCore = 1
+    for i = 1, self.countCores do
+        local threadCount = #self.cores[i].threads
+        if threadCount < minThreads then
+            minThreads = threadCount
+            bestCore = i
+        end
+    end
+
+    local totalThreads = 0
+    for i = 1, self.countCores do
+        totalThreads = totalThreads + #self.cores[i].threads
+    end
+
+    if self:calculatePotentialPower(totalThreads + 1) > self.maxPowerUsage then
         print("Warning: Adding this thread would exceed power limits!")
         return false
     end
-    
-    local success, co = self.cores[coreToUse]:addThread(func)
+
+    local success, co = self.cores[bestCore]:addThread(func)
     if success then
         self.threadLoad[co] = 0
         self:updatePowerUsage()
@@ -510,7 +524,8 @@ end
 
 function Processor:countActiveThreads()
     local count = 0
-    for _, core in ipairs(self.cores) do
+    for i = 1, #self.cores, 1 do
+        local core = self.cores[i]
         for _, thread in ipairs(core.threads) do
             if coroutine.status(thread) ~= "dead" then
                 count = count + 1

@@ -251,6 +251,8 @@ local DualCoreProcessor = {
 function DualCoreProcessor:init()
     self.cores[1] = setmetatable({}, {__index = ProcessorCore})
     self.cores[2] = setmetatable({}, {__index = ProcessorCore})
+    self.cores[1].threads = {}
+    self.cores[2].threads = {}
     self.cores[1]:init()
     self.cores[2]:init()
     
