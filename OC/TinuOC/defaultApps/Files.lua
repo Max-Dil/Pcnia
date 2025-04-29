@@ -1,5 +1,3 @@
-local json = require("json")
-
 local filesApp = {
     name = "Files",
     version = "1.0",

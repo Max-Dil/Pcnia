@@ -405,10 +405,10 @@ end
                 return HDD:getInfo()
             end,
             saveToFile = function(self, filename)
-                HDD:saveToFile(filename)
+                HDD:saveToFile("__" .. filename)
             end,
-            loadFromFile = function()
-                print("[OC] Error: Permission denied "..loadFromFile)
+            loadFromFile = function(filename)
+                HDD:loadFromFile("__" .. filename)
             end,
         }
 

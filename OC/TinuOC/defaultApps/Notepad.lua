@@ -1,5 +1,3 @@
-local json = require("json")
-
 local notepadApp = {
     name = "Notepad",
     version = "1.2",

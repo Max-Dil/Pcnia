@@ -58,7 +58,7 @@ local function installDefaultOS(self)
                                             OC:installApp(require("OC.TinuOC.defaultApps.Notepad"), function()
                                                 OC.is_installing = false
                                                 print("[OS] Default OS installed successfully")
-                                                HDD:saveToFile()
+                                                HDD:saveToFile("TinuOC_Typyka")
                                                 self:startOS()
                                             end)
                                         end)

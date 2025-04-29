@@ -1,8 +1,6 @@
-local json = require("json")
-
 local ConsoleApp = {
     name = "Console",
-    version = "1.0",
+    version = "1.5",
     main = "main",
     iconText = "CMD",
     iconTextColor = {255, 255, 255},
@@ -86,6 +84,55 @@ addLog("ram, cpu, gpu, psu, mb,", {200, 200, 200})
 addLog("cooler, monitor, disk,", {200, 200, 200})
 addLog("shutdown - Completion of work", {200, 200, 200})
 addLog("reboot - Reboot system", {200, 200, 200})
+addLog("updates - update apps", {200, 200, 200})
+addLog("mkDir path - new folder", {200, 200, 200})
+
+elseif cmd == "updates" then
+    OC.updateAppsSearch(function(updates)
+        if #updates == 0 then
+            addLog("NO updates apps", {255, 255, 200})
+            return nil
+        end
+        addLog("Updates apps: ", {200, 255, 200})
+        for i=1, #updates do
+            if updates[i].newApp.system and not updates[i].oldApp.system then
+                addLog("Error no system: "..updates[i].name .. "  " .. updates[i].oldVersion .. " > " .. updates[i].newVersion, {255, 200, 200})
+                goto countine
+            end
+            OC.is_installing = true
+            OC:installApp(updates[i].newApp, function(success)
+                if not success then
+                    addLog("Error update: "..updates[i].name .. "  " .. updates[i].oldVersion .. " > " .. updates[i].newVersion, {255, 200, 200})
+                    OC.is_installing = false
+                    return
+                end
+
+                addLog("App: "..updates[i].name .. "  " .. updates[i].oldVersion .. " > " .. updates[i].newVersion, {200, 200, 200})
+                OC.is_installing = false
+            end)
+            ::countine::
+        end
+    end)
+elseif string.sub(cmd, 1, 6) == "mkdir " then
+    local path = string.gsub(cmd, "mkdir ", "")
+    FILE_SYSTEM:mkDir(path, function(success, err)
+        if not success then
+            addLog("[FILE_SYSTEM] Error: ".. err, {255, 200, 200})
+            return
+        end
+        addLog("[FILE_SYSTEM] Success create folder at path: ".. path, {200, 255, 200})
+    end, true)
+
+elseif string.sub(cmd, 1, 6) == "rmdir " then
+    local path = string.gsub(cmd, "rmdir ", "")
+    FILE_SYSTEM:rmDir(path, function(success, err)
+        if not success then
+            addLog("[FILE_SYSTEM] Error: ".. err, {255, 200, 200})
+            return
+        end
+        addLog("[FILE_SYSTEM] Success remove folder at path: ".. path, {200, 255, 200})
+    end, true)
+
 elseif string.sub(cmd, 1, 10) == "uninstall " then
 local name = string.gsub(cmd, "uninstall ", "")
 OC:uninstallApp(name, function(success)

@@ -68,7 +68,7 @@ local function uninstallApp(self, appName, callback)
                         file:remove(function(success)
                             if success then
                                 print("[OS] App '"..appName.."' uninstalled successfully")
-                                HDD:saveToFile()
+                                HDD:saveToFile("TinuOC_Typyka")
                                 if callback then callback(true) end
                             else
                                 print("[OS] Error: Failed to remove app data")

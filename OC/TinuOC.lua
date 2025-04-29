@@ -3,7 +3,7 @@ _G.json = require("json")
 OC = {
     path = ...,
     version = "0.1",
-    name = "TinyOS",
+    name = "TinuOS",
     is_installing = false,
     logs = {}
 }
@@ -79,7 +79,7 @@ function OC:init(data)
     CPU:addThread(function ()
         LDA({255, 255, 255})
 
-        LDX("Load TinyOC")
+        LDX("Load TinuOC")
         DTX(10, 10, X(), A(), 2)
 
         LDX("by Stimor")
@@ -95,6 +95,7 @@ function OC:init(data)
     OC.loadApp = require("OC.TinuOC.Programs.load")
     OC.runAppScript = require("OC.TinuOC.Programs.runScript")
     OC.runApp = require("OC.TinuOC.Programs.run")
+    OC.updateAppsSearch = require("OC.TinuOC.Programs.updates")
 
     OC.reboot = require("OC.TinuOC.reboot")
 
@@ -109,7 +110,7 @@ function OC:init(data)
     --     print(string.format("[HDD] Read: addr=" .. address))
     -- end)
 
-    --HDD:loadFromFile()
+    HDD:loadFromFile("TinuOC_Typyka")
     FILE_SYSTEM = require("OC.TinuOC.fileSystem")
     CPU:addThread(function ()
         FILE_SYSTEM:init(function(success, err)
@@ -122,7 +123,7 @@ function OC:init(data)
                 if is_load ~= "true" then
                     HDD:write("is_load", "true", function(success)
                         if success then
-                            HDD:saveToFile()
+                            HDD:saveToFile("TinuOC_Typyka")
                             self:startOS()
                         end
                     end)
@@ -172,6 +173,7 @@ function OC:startOS()
                     local file = FILE_SYSTEM:getDirFiles("Dekstop", function (files)
                         local i = 0
                         local appPositions = {}
+                        local filesPositions = {}
                         
                         for path, value in pairs(files) do
                             local file = FILE_SYSTEM:open("Dekstop/"..path, "r")
@@ -236,6 +238,17 @@ function OC:startOS()
                                             end
                                         end)
                                     else
+                                        table.insert(filesPositions, {
+                                            x = x,
+                                            y = y,
+                                            width = iconSize,
+                                            height = iconSize,
+                                            data = data,
+                                            ext = file.fileExt,
+                                            path = file.path,
+                                            name = file.fileName
+                                        })
+
                                         LDA({150, 150, 150})
                                         DRE(x, y, iconSize, iconSize, A())
             
@@ -249,6 +262,14 @@ function OC:startOS()
                                     end
                                 end
                             end)
+                        end
+
+                        local function split(str, delimiter)
+                            local result = {}
+                            for part in str:gmatch("[^" .. delimiter .. "]+") do
+                                table.insert(result, part)
+                            end
+                            return result
                         end
             
                         OC.mousereleased = function (x, y)
@@ -268,6 +289,84 @@ function OC:startOS()
                                         envApps[appKey].show()
                                     else
                                         OC:loadApp(app.appIndex)
+                                    end
+                                    return
+                                end
+                            end
+
+                            for _, file in pairs(filesPositions) do
+                                if x >= file.x and x <= file.x + file.width and
+                                   y >= file.y and y <= file.y + file.height then
+                                    
+                                    if file.ext == "txt" then
+                                        local fileApp = FILE_SYSTEM:open("User/AppData/app_notepad/app.json", "r")
+                                        fileApp:read(function (appJson)
+                                            local app = json.decode(appJson)
+                                            
+                                            if app then
+                                                local appIndex = "app_" .. app.name:lower():gsub("[^%w]", "_")
+                                                local envApps = RAM:read(2)
+                                
+                                                local appKey = app.name .. ":" .. app.version
+                                                                    
+                                                if envApps[appKey] then
+                                                    envApps[appKey].show()
+                                
+                                                    local APP = envApps[app.name .. ":" .. app.version]
+                                                    local fileName = split(file.path, "/")
+                                                    for i=1 , #fileName, 1 do
+                                                        if fileName[i] == "files" then
+                                                            table.remove(fileName, i)
+                                                        else
+                                                            break
+                                                        end
+                                                    end
+                                                    fileName = table.concat(fileName, "/")
+                                                    local file = FILE_SYSTEM:open(fileName, "r")
+                                                    file:read(function(text)
+                                                        APP.loadFilePath({
+                                                            path = file.path,
+                                                            name = file.name,
+                                                            data = text
+                                                        })
+                                                    end)
+                                                else
+                                                    OC:loadApp(appIndex, function()
+                                                        ::searchAPP::
+                                                        envApps = RAM:read(2)
+                                                        if not envApps[app.name .. ":" .. app.version] then
+                                                            SLEEP(1)
+                                                            goto searchAPP
+                                                        end
+                                
+                                                        ::searchLoadFunc::
+                                                        local APP = envApps[app.name .. ":" .. app.version]
+                                                        if not APP.loadFilePath then
+                                                            SLEEP(1)
+                                                            goto searchLoadFunc
+                                                        end
+                                                        local fileName = split(file.path, "/")
+                                                        for i=1 , #fileName, 1 do
+                                                            if fileName[i] == "files" then
+                                                                table.remove(fileName, i)
+                                                            else
+                                                                break
+                                                            end
+                                                        end
+                                                        fileName = table.concat(fileName, "/")
+                                                        local file = FILE_SYSTEM:open(fileName, "r")
+                                                        file:read(function(text)
+                                                            APP.loadFilePath({
+                                                                path = file.path,
+                                                                name = file.name,
+                                                                data = text
+                                                            })
+                                                        end)
+                                                    end)
+                                                end
+                                            end
+                                        end)
+                                        return nil
                                     end
                                     return
                                 end

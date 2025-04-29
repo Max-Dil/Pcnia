@@ -5,13 +5,14 @@ local function installApp(self, appData, callback)
             return false
         end
         if appData.system then
+            print(OC.is_installing)
             if not OC.is_installing then
                 print("[OC] Error: Permission denied for install app: "..appData.name)
                 callback(false)
                 return
             end
         end
-    
+
         if (appData.name:lower() == "console" or appData.name:lower() == "files") and not OC.is_installing then
             print("[OC] Error: Permission denied for install app: "..appData.name)
             callback(false)
@@ -23,6 +24,12 @@ local function installApp(self, appData, callback)
         local file = FILE_SYSTEM:open("Tinu/apps.json", "r")
         file:read(function (value)
             local apps = json.decode(value)
+            for i = 1, #apps, 1 do
+                if apps[i] == appIndex then
+                    table.remove(apps, i)
+                    break
+                end
+            end
             table.insert(apps, appIndex)
             file.close()
             file = FILE_SYSTEM:open("Tinu/apps.json", "w")
@@ -40,7 +47,7 @@ local function installApp(self, appData, callback)
                                 file = FILE_SYSTEM:open("Dekstop/"..appData.name..".app", "w")
                                 file:write("User/AppData/"..appIndex, function ()
                                     print("[OS] App '" .. appData.name .. "' installed successfully")
-                                    HDD:saveToFile()
+                                    HDD:saveToFile("TinuOC_Typyka")
                                     if callback then callback(true) end
                                 end)
                             else

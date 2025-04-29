@@ -1,12 +1,12 @@
 -- MONITOR/Huga.lua
 local Huga = {
-    model = "Huga 400x300 Pro",
-    resolution = {width = 400, height = 300},
+    model = "Huga 800x600 Pro",
+    resolution = {width = 800, height = 600},
     pixels = {},
-    colorDepth = 8, -- бит на цвет
-    powerConsumption = 15, -- Вт
+    colorDepth = 16, -- бит на цвет
+    powerConsumption = 40, -- Вт
     temperature = 25, -- начальная температура
-    maxTemperature = 60,
+    maxTemperature = 100,
     isOn = true,
     brightness = 1.0,    -- 0.0 (мин) до 1.0 (макс)
     contrast = 1.0,      -- 0.5 (мин) до 2.0 (макс)
@@ -77,7 +77,7 @@ function Huga:update(dt)
     if self.temperature > 25 then
         self.temperature = self.temperature - dt * 0.5
     end
-
+    
     if self.isOn then
         local heatFactor = 0.1 + 0.3 * self.backlightLevel
         self.temperature = math.min(

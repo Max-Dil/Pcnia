@@ -17,7 +17,6 @@ local function reboot(self)
                     local thread = CPU.cores[core].threads[i]
                     if coroutine.status(thread) ~= "dead" then
                         table.remove(CPU.cores[core].threads, i)
-                        self.threadLoad[thread] = nil
                     end
                 end
             end
@@ -26,7 +25,6 @@ local function reboot(self)
                 local thread = CPU.threads[i]
                 if coroutine.status(thread) ~= "dead" then
                     table.remove(CPU.threads, i)
-                    self.threadLoad[thread] = nil
                 end
             end
         end
