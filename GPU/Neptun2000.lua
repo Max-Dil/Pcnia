@@ -23,7 +23,7 @@ local Neptun = {
     currentClockSpeed = 700,
     memoryClockSpeed = 600,
 
-    TDP = 150,
+    TDP = 200,
     max_temperature = 120,
     current_temperature = 50,
     power_usage = 0,

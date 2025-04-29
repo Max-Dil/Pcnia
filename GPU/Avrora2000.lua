@@ -22,7 +22,7 @@ local Avrora = {
     currentClockSpeed = 400,
     memoryClockSpeed = 200,
 
-    TDP = 125,
+    TDP = 175,
     max_temperature = 120,
     current_temperature = 40,
     power_usage = 0,
@@ -32,7 +32,7 @@ local Avrora = {
     max_fan_speed = 100,
 
     autoBoost = true,
-    power_limit = 140,
+    power_limit = 190,
     voltage = 1.1,
 
     maxClockSpeed = 900,
