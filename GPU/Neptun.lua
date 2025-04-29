@@ -84,15 +84,6 @@ function Neptun:init(cpu)
 end
 
 function Neptun:initFrameBuffer()
-    for y = 1, #(self.frame_buffer or {}) do
-        for x = 1, self.frame_buffer[y], 1 do
-            self.frame_buffer[y][x] = nil
-            self.frame_buffer[y] = nil
-        end
-    end
-    for y = 1, #(self.back_buffer or {}) do
-        self.back_buffer[y] = nil
-    end
 
     self.frame_buffer = {}
     self.back_buffer = {}
@@ -105,11 +96,6 @@ function Neptun:initFrameBuffer()
 end
 
 function Neptun:setResolution(width, height)
-    if width * height * (self.color_depth/8) > self.memory_size * 1024 then
-        print("Error: Not enough video memory for this resolution")
-        return false
-    end
-    
     self.resolution.width = width
     self.resolution.height = height
     self:initFrameBuffer()

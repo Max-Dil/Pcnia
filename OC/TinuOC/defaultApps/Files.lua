@@ -189,8 +189,8 @@ local drawFileDialog = function()
     LDA({0, 0, 0, 150})
     DRE(0, 0, MONITOR.resolution.width, MONITOR.resolution.height, A())
 
-    local dialogWidth = 400
-    local dialogHeight = 300
+    local dialogWidth = MONITOR.resolution.width
+    local dialogHeight = MONITOR.resolution.height
     local dialogX = (MONITOR.resolution.width - dialogWidth) / 2
     local dialogY = (MONITOR.resolution.height - dialogHeight) / 2
     
@@ -512,8 +512,8 @@ end
 
 updateFileList()
 addEvent("mousereleased", function(x, y, button)
-    local dialogWidth = 400
-    local dialogHeight = 300
+    local dialogWidth = MONITOR.resolution.width
+    local dialogHeight = MONITOR.resolution.height
     local dialogX = (MONITOR.resolution.width - dialogWidth) / 2
     local dialogY = (MONITOR.resolution.height - dialogHeight) / 2
 

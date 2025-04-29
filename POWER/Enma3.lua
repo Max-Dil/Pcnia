@@ -1,9 +1,9 @@
 -- Блок питания Enma1
 local Enma1 = {
-    model = "Enma2",
-    version = "2.4",
+    model = "Enma3",
+    version = "1.0",
 
-    maxPower = 200,          -- Максимальная мощность (Вт)
+    maxPower = 300,          -- Максимальная мощность (Вт)
     efficiency = 0.75,       -- КПД (80 BRonza)
     voltageRails = {
         ["+12V"] = { maxCurrent = 50, current = 0, voltage = 12 },
@@ -19,9 +19,9 @@ local Enma1 = {
     motherboard = nil,
 
     powerDrawHistory = {},
-    maxHistorySize = 120,
+    maxHistorySize = 240,
 
-    maxTok = 200,
+    maxTok = 300,
 
     is_lomka = false,
 }
@@ -164,8 +164,8 @@ function Enma1:update(dt)
 
     self.maxTok = maxTok
     if maxTok < 0 then
-        print("[Enma2] Critical energy")
-        if math.random(1, 50) == 1 then
+        print("[Enma3] Critical energy")
+        if math.random(1, 25) == 1 then
             self.is_lomka = true
             self.motherboard.gpu.input_current = 0
             self.monitor.input_current = 0
@@ -176,7 +176,7 @@ function Enma1:update(dt)
                 self.motherboard.storages[i].input_current = 0
             end
             self.monitor:clear()
-            print("[Enma2] Block rip")
+            print("[Enma3] Block rip")
         end
     end
 end

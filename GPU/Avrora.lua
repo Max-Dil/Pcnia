@@ -95,12 +95,6 @@ function Avrora:init(cpu)
 end
 
 function Avrora:initFrameBuffer()
-    for y = 1, #(self.frame_buffer or {}) do
-        for x = 1, self.frame_buffer[y], 1 do
-            self.frame_buffer[y][x] = nil
-            self.frame_buffer[y] = nil
-        end
-    end
 
     self.frame_buffer = {}
     for y = 1, self.resolution.height do
@@ -113,10 +107,6 @@ function Avrora:initFrameBuffer()
 end
 
 function Avrora:setResolution(width, height)
-    if width * height * (self.color_depth/8) > self.memory_size * 1024 then
-        print("Error: Not enough video memory for this resolution")
-        return false
-    end
     
     self.resolution.width = width
     self.resolution.height = height
