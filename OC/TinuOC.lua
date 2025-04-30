@@ -109,7 +109,7 @@ function OC:init(data)
     --     print(string.format("[HDD] Read: addr=" .. address))
     -- end)
 
-    --HDD:loadFromFile("TinuOC")
+    HDD:loadFromFile("TinuOC")
     FILE_SYSTEM = require("OC.TinuOC.fileSystem")
     CPU:addThread(function ()
         FILE_SYSTEM:init(function(success, err)

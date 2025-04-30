@@ -53,7 +53,7 @@ local Neptun = {
     },
 
     resolution = {width = 400, height = 300},
-    color_depth = 16,
+    color_depth = 4,
     fps = 0,
     frame_buffer = {},
     frame_time = 0,
@@ -220,7 +220,7 @@ function Neptun:renderFrame()
     self.pixel_draw_count = changed_pixels
     self.back_buffer = {}
 
-    self.memory_usage = 4 * changed_pixels
+    self.memory_usage = self.color_depth * changed_pixels
     if self.memory_usage / 1024 / self.memory_size > 100 then
         error("[Neptun] no memory free")
     end
