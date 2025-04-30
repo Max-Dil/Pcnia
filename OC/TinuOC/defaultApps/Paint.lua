@@ -1,6 +1,6 @@
 local paintApp = {
     name = "Paint",
-    version = "1.0",
+    version = "1.34",
     main = "main",
     iconText = "ART",
     iconTextColor = {255, 255, 255},
@@ -50,7 +50,7 @@ local canvasRows = math.floor(canvasHeight / pixelSize)
 for y = 1, canvasRows do
     canvas[y] = {}
     for x = 1, canvasCols do
-        canvas[y][x] = {0, 0, 0} -- Black by default
+        canvas[y][x] = {0, 0, 0}
     end
 end
 
@@ -106,12 +106,12 @@ local function updateDisplay()
             local pixelY = 50 + (y-1)*pixelSize + canvasOffsetY
             if pixelX >= 0 and pixelX < canvasWidth and pixelY >= 50 and pixelY < canvasHeight + 50 then
                 if canvas[y][x] then
-                DRE(pixelX, pixelY, pixelSize, pixelSize, canvas[y][x])
+                    DRE(pixelX, pixelY, pixelSize, pixelSize, canvas[y][x])
 
-                if showGrid then
-                    DRE(pixelX, pixelY, 1, pixelSize, {50, 50, 50})
-                    DRE(pixelX, pixelY, pixelSize, 1, {50, 50, 50})
-                end
+                    if showGrid then
+                        DRE(pixelX, pixelY, 1, pixelSize, {50, 50, 50})
+                        DRE(pixelX, pixelY, pixelSize, 1, {50, 50, 50})
+                    end
                 end
             end
         end
@@ -147,6 +147,8 @@ local function updateDisplay()
                  255 - canvas[canvasY][canvasX][3]})
         end
     end
+
+    return nil
 end
 
 local function resizeCanvas(newWidth, newHeight)
@@ -173,60 +175,55 @@ local function showStatus(message, duration)
 end
 
 local function saveFile(path)
-    local file = FILE_SYSTEM:open(path, "w")
-    local serialized = "{\n"
-    for y = 1, #canvas do
-        serialized = serialized.." {"
-        for x = 1, #canvas[y] do
-            serialized = serialized.."{"..canvas[y][x][1]..","..canvas[y][x][2]..","..canvas[y][x][3].."}"
-            if x < #canvas[y] then serialized = serialized.."," end
-        end
-        serialized = serialized.."}"
-        if y < #canvas then serialized = serialized.."," end
-        serialized = serialized.."\n"
-    end
-    serialized = serialized.."}"
-    
+    local file = FILE_SYSTEM:open(path, "w", true)
+
+    local serialized = json.encode(canvas)
     file:write(serialized, function(success)
         if success then
-            fileName = path:match("([^/]+)$") or path
+            fileName = path
             showStatus("Saved successfully: "..fileName, 60)
             write(1, serialized)
+            updateDisplay()
         else
             showStatus("Save failed!", 60)
         end
-        updateDisplay()
     end)
 end
 
 local function saveFileAs()
+    is_load = true
+    isDrawing = false
     openFileDialog(function(file)
         if file then
             saveFile(file.path)
         end
+        is_load = false
     end, true)
 end
 
 local function loadFilePath(file)
+    is_load = false
+    isDrawing = false
     if file then
-        local success, loaded = pcall(loadstring("return "..file.data))
+        local success, loaded = pcall(json.decode, file.data)
         if success and type(loaded) == "table" then
             canvas = loaded
-            fileName = file.path:match("([^/]+)$") or file.path
+            fileName = file.path
             write(1, file.data)
             showStatus("Loaded: "..fileName, 60)
+            updateDisplay()
         else
+            fileName = file.path
             showStatus("Invalid file format", 60)
         end
-        updateDisplay()
     end
 end
 
 local function loadFile()
     is_load = true
+    isDrawing = false
     openFileDialog(function(file)
         loadFilePath(file)
-        is_load = false
     end)
 end
 APP.loadFilePath = loadFilePath
@@ -268,7 +265,7 @@ local function drawLine(x1, y1, x2, y2)
     local err = dx - dy
 
     while true do
-        if is_load then goto countine end
+        if is_load then break end
         if x1 >= 1 and x1 <= #canvas[1] and y1 >= 1 and y1 <= #canvas then
             if tool == "pencil" then
                 canvas[y1][x1] = {color[1], color[2], color[3]}
@@ -286,7 +283,6 @@ local function drawLine(x1, y1, x2, y2)
             err = err + dx
             y1 = y1 + sy
         end
-        ::countine::
     end
 end
 
@@ -345,6 +341,7 @@ addEvent("keypressed", function(key)
         canvasCols = math.floor(canvasWidth / pixelSize)
         canvasRows = math.floor(canvasHeight / pixelSize)
     elseif key == "f8" then
+        print(fileName)
         if fileName == "untitled.pix" then
             saveFileAs()
         else
@@ -430,12 +427,12 @@ addEvent("mousepressed", function(x, y, button)
             end
         end
     end
-    
+
     updateDisplay()
 end)
 
 addEvent("mousereleased", function()
-    if is_load then return end
+    if is_load then isDrawing = false lastX, lastY = -1, -1 return end
     isDrawing = false
     lastX, lastY = -1, -1
     write(1, serialize(canvas))
@@ -443,31 +440,11 @@ addEvent("mousereleased", function()
 end)
 
 function serialize(t)
-    local result = "{"
-    for i=1, #t do
-        if type(t[i]) == "table" then
-            result = result..serialize(t[i])
-        else
-            result = result..tostring(t[i])
-        end
-        if i < #t then result = result.."," end
-    end
-    return result.."}"
+    local result = json.encode(t)
+    return result
 end
 
-updateDisplay()
-
 while true do
-    local dir = love.mouse.getWheel()
-    if dir > 0 then
-        pixelSize = math.min(8, pixelSize + 1)
-        canvasCols = math.floor(canvasWidth / pixelSize)
-        canvasRows = math.floor(canvasHeight / pixelSize)
-    elseif dir < 0 then
-        pixelSize = math.max(1, pixelSize - 1)
-        canvasCols = math.floor(canvasWidth / pixelSize)
-        canvasRows = math.floor(canvasHeight / pixelSize)
-    end
     SLEEP(0.05)
 end
 ]]

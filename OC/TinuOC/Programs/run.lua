@@ -139,6 +139,8 @@ local function runApp(self, app, appIndex)
         hide = function (isNotMenu)
             OC.mousereleased = nil
             OC.keypressed = nil
+            OC.mousepressed = nil
+            OC.mousemoved = nil
             for i = 1, #APP.threads do
                 local s = CPU:searchThread(APP.threads[i])
                 if s then
@@ -159,6 +161,8 @@ local function runApp(self, app, appIndex)
         show = function ()
             OC.mousereleased = handleMouseReleased
             OC.keypressed = handleKeypressed
+            OC.mousepressed = handleMousePressed
+            OC.mousemoved = handleMouseMoved
             GPU.frame_buffer = json.decode(APP.frame_buffer)
             APP.frame_buffer = nil
             for i = 1, #APP.threads do

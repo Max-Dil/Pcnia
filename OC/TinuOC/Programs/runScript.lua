@@ -33,6 +33,12 @@ local openFileDialog = function(callback)
     local originalMouseReleased = OC.mousereleased
     local originalKeypressed = OC.keypressed
 
+    local originalMousemousepressed = OC.mousepressed
+    local originalmousemoved = OC.mousemoved
+
+    OC.mousepressed = nil
+    OC.mousemoved = nil
+
     local drawFileDialog = function()
         LDA({0, 0, 0, 150})
         DRE(0, 0, MONITOR.resolution.width, MONITOR.resolution.height, A())
@@ -172,6 +178,8 @@ local openFileDialog = function(callback)
                         GPU:clear()
                         OC.mousereleased = originalMouseReleased
                         OC.keypressed = originalKeypressed
+                        OC.mousepressed = originalMousemousepressed
+                        OC.mousemoved = originalmousemoved
                         
                         callback({
                             path = selected.path,
@@ -239,6 +247,8 @@ local openFileDialog = function(callback)
                     GPU:clear()
                     OC.mousereleased = originalMouseReleased
                     OC.keypressed = originalKeypressed
+                    OC.mousepressed = originalMousemousepressed
+                    OC.mousemoved = originalmousemoved
                     
                     callback({
                         path = selected.path,
@@ -252,6 +262,8 @@ local openFileDialog = function(callback)
             GPU:clear()
             OC.mousereleased = originalMouseReleased
             OC.keypressed = originalKeypressed
+            OC.mousepressed = originalMousemousepressed
+            OC.mousemoved = originalmousemoved
             callback(nil)
             return nil
         elseif key == "backspace" then

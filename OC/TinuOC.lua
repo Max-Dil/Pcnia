@@ -109,7 +109,7 @@ function OC:init(data)
     --     print(string.format("[HDD] Read: addr=" .. address))
     -- end)
 
-    HDD:loadFromFile("TinuOC")
+    --HDD:loadFromFile("TinuOC")
     FILE_SYSTEM = require("OC.TinuOC.fileSystem")
     CPU:addThread(function ()
         FILE_SYSTEM:init(function(success, err)
@@ -300,6 +300,76 @@ function OC:startOS()
                                     
                                     if file.ext == "txt" then
                                         local fileApp = FILE_SYSTEM:open("User/AppData/app_notepad/app.json", "r")
+                                        fileApp:read(function (appJson)
+                                            local app = json.decode(appJson)
+                                            
+                                            if app then
+                                                local appIndex = "app_" .. app.name:lower():gsub("[^%w]", "_")
+                                                local envApps = RAM:read(2)
+                                
+                                                local appKey = app.name .. ":" .. app.version
+                                                                    
+                                                if envApps[appKey] then
+                                                    envApps[appKey].show()
+                                
+                                                    local APP = envApps[app.name .. ":" .. app.version]
+                                                    local fileName = split(file.path, "/")
+                                                    for i=1 , #fileName, 1 do
+                                                        if fileName[i] == "files" then
+                                                            table.remove(fileName, i)
+                                                        else
+                                                            break
+                                                        end
+                                                    end
+                                                    fileName = table.concat(fileName, "/")
+                                                    local file = FILE_SYSTEM:open(fileName, "r")
+                                                    file:read(function(text)
+                                                        APP.loadFilePath({
+                                                            path = file.path,
+                                                            name = file.name,
+                                                            data = text
+                                                        })
+                                                    end)
+                                                else
+                                                    OC:loadApp(appIndex, function()
+                                                        ::searchAPP::
+                                                        envApps = RAM:read(2)
+                                                        if not envApps[app.name .. ":" .. app.version] then
+                                                            SLEEP(1)
+                                                            goto searchAPP
+                                                        end
+                                
+                                                        ::searchLoadFunc::
+                                                        local APP = envApps[app.name .. ":" .. app.version]
+                                                        if not APP.loadFilePath then
+                                                            SLEEP(1)
+                                                            goto searchLoadFunc
+                                                        end
+                                                        local fileName = split(file.path, "/")
+                                                        for i=1 , #fileName, 1 do
+                                                            if fileName[i] == "files" then
+                                                                table.remove(fileName, i)
+                                                            else
+                                                                break
+                                                            end
+                                                        end
+                                                        fileName = table.concat(fileName, "/")
+                                                        local file = FILE_SYSTEM:open(fileName, "r")
+                                                        file:read(function(text)
+                                                            APP.loadFilePath({
+                                                                path = file.path,
+                                                                name = file.name,
+                                                                data = text
+                                                            })
+                                                        end)
+                                                    end)
+                                                end
+                                            end
+                                        end)
+                                        return nil
+                                    end
+                                    if file.ext == "pix" then
+                                        local fileApp = FILE_SYSTEM:open("User/AppData/app_paint/app.json", "r")
                                         fileApp:read(function (appJson)
                                             local app = json.decode(appJson)
                                             
