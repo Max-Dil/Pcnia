@@ -110,6 +110,18 @@ function ProcessorCore:DRM(x, y, data)
     end
 end
 
+function ProcessorCore:DLN(x, y, x2, y2, color)
+    self:applyLoadDelay()
+    if self.gpu then
+        if self.gpu then
+            if self.gpu.driver == "Unakoda" then
+                self.gpu:drawLine(x, y, x2, y2, color)
+            else
+            end
+        end
+    end
+end
+
 function ProcessorCore:SLEEP(seconds)
     self:applyLoadDelay()
     local start = self.lastTime or love.timer.getTime()
@@ -228,6 +240,7 @@ function ProcessorCore:addThread(func)
             DTX = function(x, y, text, color, scale) coroutine.yield() return self:DTX(x, y, text, color, scale) end,
             DRE = function(x, y, width, height, color) coroutine.yield() return self:DRE(x, y, width, height, color) end,
             DRM = function(x, y, data) coroutine.yield() return self:DRM(x, y, data) end,
+            DLN = function(x, y, x2, y2, color) coroutine.yield() return self:DLN(x, y, x2, y2, color) end,
             SLEEP = function(s) return self:SLEEP(s) end,
 
             read = function(addr) coroutine.yield() return self.motherboard:readMemory(addr) end,
@@ -523,6 +536,7 @@ function OreDualCore:getInfo()
     local activeThreads = self:countActiveThreads()
     
     return {
+        cores = #self.cores,
         clockSpeed = self.currentClockSpeed,
         baseClockSpeed = self.baseClockSpeed,
         maxClockSpeed = self.maxClockSpeed,

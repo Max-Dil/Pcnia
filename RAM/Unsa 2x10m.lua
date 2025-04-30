@@ -211,6 +211,7 @@ function Unsa2x1GB:getInfo()
     return {
         model = self.model,
         capacity = self.capacity,
+        usedMemory = self.usedMemory,
         freeMemory = self.capacity - self.usedMemory,
         frequency = self.frequency,
         utilization = self.utilization * 100,

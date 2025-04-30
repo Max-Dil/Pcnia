@@ -1,7 +1,7 @@
 local bit = require("bit")
 local Processor = {
     model = "Zero1",
-    version = "1.3",
+    version = "1.4",
 
     threads = {},   -- Потоки (корутины)
     currentThread = 1,
@@ -82,6 +82,17 @@ function Processor:DRM(x, y, data)
         if self.gpu then
             if self.gpu.driver == "Unakoda" then
                 self.gpu:drawImage(x, y, data)
+            else
+            end
+        end
+    end
+end
+function Processor:DLN(x, y, x2, y2, color)
+    self:applyLoadDelay()
+    if self.gpu then
+        if self.gpu then
+            if self.gpu.driver == "Unakoda" then
+                self.gpu:drawLine(x, y, x2, y2, color)
             else
             end
         end
@@ -233,6 +244,7 @@ function Processor:addThread(func)
             DTX = function(x, y, text, color, scale) coroutine.yield() return self:DTX(x, y, text, color, scale) end,
             DRE = function(x, y, width, height, color) coroutine.yield() return self:DRE(x, y, width, height, color) end,
             DRM = function(x, y, data) coroutine.yield() return self:DRM(x, y, data) end,
+            DLN = function(x, y, x2, y2, color) coroutine.yield() return self:DLN(x, y, x2, y2, color) end,
             SLEEP = function(s) return self:SLEEP(s) end,
 
             A = function() coroutine.yield() return A end,

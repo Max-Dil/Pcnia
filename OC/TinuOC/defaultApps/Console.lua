@@ -1,6 +1,6 @@
 local ConsoleApp = {
     name = "Console",
-    version = "1.5",
+    version = "1.6",
     main = "main",
     iconText = "CMD",
     iconTextColor = {255, 255, 255},
@@ -86,6 +86,7 @@ addLog("shutdown - Completion of work", {200, 200, 200})
 addLog("reboot - Reboot system", {200, 200, 200})
 addLog("updates - update apps", {200, 200, 200})
 addLog("mkDir path - new folder", {200, 200, 200})
+addLog("rmDir path - remove folder", {200, 200, 200})
 
 elseif cmd == "updates" then
     OC.updateAppsSearch(function(updates)
@@ -164,6 +165,9 @@ end
 elseif cmd == "gpu" then
 local info = GPU:getInfo()
 for key, value in pairs(info) do
+if type(value == "table") then
+value = json.encode(value)
+end
 addLog(key..": "..tostring(value), {200, 200, 200})
 end
 elseif cmd == "psu" then

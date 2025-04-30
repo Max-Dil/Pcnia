@@ -471,7 +471,8 @@ end
             version = PSU.version,
             getInfo = function()
                 return PSU:getInfo()
-            end
+            end,
+            powerDrawHistory = PSU.powerDrawHistory
         }
 
         local COOLER = {

@@ -196,13 +196,15 @@ local function runApp(self, app, appIndex)
         runScript = runScript,
     }
     
-    CPU:addThread(function()
+    local success, co =CPU:addThread(function()
         GPU:clear()
         LDA(app.name)
         DTX(MONITOR.resolution.width/2 - (#A() * 6), 10, A(), {255, 255, 255}, 2)
         DRE(MONITOR.resolution.width - 20, 10, 10, 10, {255, 0, 0})
         DRE(MONITOR.resolution.width - 35, 10, 10, 10, {0, 100, 255})
     end)
+    table.insert(APP.threads, co)
+
     
     OC.mousereleased = handleMouseReleased
     OC.keypressed = handleKeypressed

@@ -109,7 +109,7 @@ function OC:init(data)
     --     print(string.format("[HDD] Read: addr=" .. address))
     -- end)
 
-    HDD:loadFromFile("TinuOC")
+    --HDD:loadFromFile("TinuOC")
     FILE_SYSTEM = require("OC.TinuOC.fileSystem")
     CPU:addThread(function ()
         FILE_SYSTEM:init(function(success, err)
@@ -168,7 +168,7 @@ function OC:startOS()
                     local textHeight = 20
                     local startX = margin
                     local startY = margin + 40
-                    local itemsPerRow = math.floor((MONITOR.resolution.width - margin * 2) / (iconSize + margin))
+                    local itemsPerRow = math.floor((MONITOR.resolution.width - margin * 2) / (iconSize + margin)) + 1
             
                     local file = FILE_SYSTEM:getDirFiles("Dekstop", function (files)
                         local i = 0

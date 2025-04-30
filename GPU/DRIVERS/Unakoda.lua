@@ -1,7 +1,7 @@
 -- Unacode.lua 
 
 local Unakoda = {
-    version = "1.0",
+    version = "1.1",
 
 }
 
@@ -9,6 +9,37 @@ function Unakoda:init(gpu)
     gpu.drawText = Unakoda.drawText
     gpu.drawRectangle = Unakoda.drawRectangle
     gpu.drawImage = Unakoda.drawImage
+    gpu.drawLine = Unakoda.drawLine
+end
+
+function Unakoda:drawLine(x1, y1, x2, y2, color)
+    color = color or {255, 255, 255}
+    
+    local dx = math.abs(x2 - x1)
+    local dy = math.abs(y2 - y1)
+    local sx = x1 < x2 and 1 or -1
+    local sy = y1 < y2 and 1 or -1
+    local err = dx - dy
+    
+    while true do
+        if x1 >= 1 and x1 <= self.resolution.width and
+           y1 >= 1 and y1 <= self.resolution.height then
+            self.pixel_draw_count = self.pixel_draw_count + 1
+            self:drawPixel(x1, y1, color)
+        end
+
+        if x1 == x2 and y1 == y2 then break end
+        
+        local e2 = 2 * err
+        if e2 > -dy then
+            err = err - dy
+            x1 = x1 + sx
+        end
+        if e2 < dx then
+            err = err + dx
+            y1 = y1 + sy
+        end
+    end
 end
 
 function Unakoda:drawImage(x, y, data)

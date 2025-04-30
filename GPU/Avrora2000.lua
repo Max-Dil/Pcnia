@@ -284,38 +284,32 @@ end
 function Avrora:getInfo()
     return {
         model = self.model,
-        memory = string.format("%dMB %s (%d-bit)", 
+        memory = {
                   self.memory_size * 1024, 
                   self.memory_type, 
-                  self.memory_bus_width),
-        clock = string.format("%d/%d MHz (Memory: %d MHz)", 
+                  self.memory_bus_width},
+        clock = {
                  self.currentClockSpeed, 
                  self.boostClockSpeed, 
-                 self.memoryClockSpeed),
-        temperature = string.format("%.1f°C (Fan: %d%%)", 
+                 self.memoryClockSpeed},
+        temperature = {
                        self.current_temperature, 
-                       self.fan_speed),
-        power = string.format("%.1f/%dW (%.1f%%)", 
+                       self.fan_speed},
+        power = {
                 self.power_usage, 
                 self.TDP, 
-                self.utilization.power),
-        utilization = string.format("Core: %.1f%%, Memory: %.1f%%", 
-                       self.utilization.core, 
-                       self.utilization.memory),
-        fps = string.format("%.1f FPS", self.fps),
-        resolution = string.format("%dx%d (%d-bit)", 
+                self.utilization.power},
+        utilization = self.utilization,
+        fps = self.fps,
+        resolution = {
                       self.resolution.width, 
                       self.resolution.height, 
-                      self.color_depth),
-        memory_usage = string.format("%.1f/%d MB", 
+                      self.color_depth},
+        memory_usage = {
                         self.memory_usage, 
-                        self.memory_size),
+                        self.memory_size},
         architecture = self.architecture,
-        cores = string.format("CUDA: %d, RT: %d, TMUs: %d, ROPs: %d", 
-                 self.CUDA_cores, 
-                 self.RT_cores, 
-                 self.TMUs, 
-                 self.ROPs)
+        cores = self:getCore()
     }
 end
 
