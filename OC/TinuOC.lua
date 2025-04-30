@@ -109,7 +109,7 @@ function OC:init(data)
     --     print(string.format("[HDD] Read: addr=" .. address))
     -- end)
 
-    HDD:loadFromFile("TinuOC_Typyka")
+    HDD:loadFromFile("TinuOC")
     FILE_SYSTEM = require("OC.TinuOC.fileSystem")
     CPU:addThread(function ()
         FILE_SYSTEM:init(function(success, err)
@@ -122,7 +122,7 @@ function OC:init(data)
                 if is_load ~= "true" then
                     HDD:write("is_load", "true", function(success)
                         if success then
-                            HDD:saveToFile("TinuOC_Typyka")
+                            HDD:saveToFile("TinuOC")
                             self:startOS()
                         end
                     end)

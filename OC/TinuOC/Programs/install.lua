@@ -47,7 +47,7 @@ local function installApp(self, appData, callback)
                                 file = FILE_SYSTEM:open("Dekstop/"..appData.name..".app", "w")
                                 file:write("User/AppData/"..appIndex, function ()
                                     print("[OS] App '" .. appData.name .. "' installed successfully")
-                                    HDD:saveToFile("TinuOC_Typyka")
+                                    HDD:saveToFile("TinuOC")
                                     if callback then callback(true) end
                                 end)
                             else

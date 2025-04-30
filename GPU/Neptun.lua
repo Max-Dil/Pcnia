@@ -6,7 +6,7 @@
 ]]
 local Neptun = {
     model = "Neptun GTX",
-    version = "1.1",
+    version = "1.2",
     manufacturer = "StimorGPU",
     architecture = "NATS",
 
@@ -18,10 +18,10 @@ local Neptun = {
     memory_bandwidth = 0.2, -- GB/s
     memory_usage = 0,       -- MB used
 
-    baseClockSpeed = 700,
-    boostClockSpeed = 900,
-    currentClockSpeed = 500,
-    memoryClockSpeed = 400,
+    baseClockSpeed = 500,
+    boostClockSpeed = 700,
+    currentClockSpeed = 300,
+    memoryClockSpeed = 200,
 
     TDP = 100,
     max_temperature = 95,
@@ -36,7 +36,7 @@ local Neptun = {
     power_limit = 120,
     voltage = 1.5,
 
-    maxClockSpeed = 900,
+    maxClockSpeed = 700,
     minClockSpeed = 100,
     boostThreshold = 0.5,
     throttleThreshold = 0.9,
@@ -210,16 +210,15 @@ end
 
 local cores = Neptun:getCore()
 function Neptun:renderFrame()
-    local pixels_to_render = self.back_buffer
     local changed_pixels = self.pixel_draw_count
 
-    for i =  1, #pixels_to_render do
-        self.frame_buffer[pixels_to_render[i][2]][pixels_to_render[i][1]] = pixels_to_render[i][3]
+    for key, value in pairs(self.back_buffer) do
+        self.frame_buffer[value[2]][value[1]] = value[3]
         changed_pixels = changed_pixels + 1
-        pixels_to_render[i] = nil
+        self.back_buffer[key] = nil
     end
     self.pixel_draw_count = changed_pixels
-    pixels_to_render = {}
+    self.back_buffer = {}
 
     self.memory_usage = 4 * changed_pixels
     if self.memory_usage / 1024 / self.memory_size > 100 then
@@ -239,7 +238,7 @@ end
 function Neptun:drawPixel(x, y, color)
     if x >= 1 and x <= self.resolution.width and
        y >= 1 and y <= self.resolution.height then
-        self.back_buffer[#self.back_buffer+1] = {x, y, color}
+        self.back_buffer[x.."|"..y] = {x, y, color}
     else
         print(string.format("Invalid pixel coordinates (%d, %d)", x, y))
     end

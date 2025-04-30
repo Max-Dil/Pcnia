@@ -5,7 +5,7 @@
 ]]
 local Avrora = {
     model = "Avrora GTX",
-    version = "1.0",
+    version = "1.1",
     manufacturer = "StimorGPU",
     architecture = "STNA",
 
@@ -17,10 +17,10 @@ local Avrora = {
     memory_bandwidth = 0.05, -- GB/s
     memory_usage = 0,       -- MB used
 
-    baseClockSpeed = 500,
-    boostClockSpeed = 700,
-    currentClockSpeed = 200,
-    memoryClockSpeed = 100,
+    baseClockSpeed = 300,
+    boostClockSpeed = 500,
+    currentClockSpeed = 100,
+    memoryClockSpeed = 50,
 
     TDP = 50,
     max_temperature = 95,
@@ -35,7 +35,7 @@ local Avrora = {
     power_limit = 60,
     voltage = 1.1,
 
-    maxClockSpeed = 700,
+    maxClockSpeed = 500,
     minClockSpeed = 10,
     boostThreshold = 0.5,
     throttleThreshold = 0.9,

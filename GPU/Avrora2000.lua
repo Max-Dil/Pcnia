@@ -17,10 +17,10 @@ local Avrora = {
     memory_bandwidth = 0.3, -- GB/s
     memory_usage = 0,       -- MB used
 
-    baseClockSpeed = 700,
-    boostClockSpeed = 900,
-    currentClockSpeed = 400,
-    memoryClockSpeed = 200,
+    baseClockSpeed = 500,
+    boostClockSpeed = 700,
+    currentClockSpeed = 200,
+    memoryClockSpeed = 100,
 
     TDP = 175,
     max_temperature = 120,
@@ -35,7 +35,7 @@ local Avrora = {
     power_limit = 190,
     voltage = 1.1,
 
-    maxClockSpeed = 900,
+    maxClockSpeed = 700,
     minClockSpeed = 100,
     boostThreshold = 0.5,
     throttleThreshold = 0.75,
