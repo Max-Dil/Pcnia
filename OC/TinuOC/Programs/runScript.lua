@@ -317,6 +317,25 @@ end
             end
         end
 
+        local GPU = {
+            model = GPU.model,
+            version = GPU.version,
+            clear = function(self)
+                if APP.isVisible then
+                    GPU:clear()
+                end
+            end,
+            getCore = function(self)
+                return GPU:getCore()
+            end,
+            getInfo = function(self)
+                return GPU:getInfo()
+            end,
+            frame_buffer = GPU.frame_buffer,
+            render_buffer = GPU.render_buffer,
+
+        }
+
         ]=] .. (not app.system and [=[
         local OC = {
             version = OC.version,
@@ -495,7 +514,9 @@ end
             model = GPU.model,
             version = GPU.version,
             clear = function(self)
-                GPU:clear()
+                if APP.isVisible then
+                    GPU:clear()
+                end
             end,
             getCore = function(self)
                 return GPU:getCore()

@@ -2,11 +2,11 @@
 local json = require("json")
 
 local Unsa2x1GB = {
-    model = "Unsa DDR1 2x100mb",
+    model = "Unsa DDR1 2x10mb",
     version = "1.0",
     manufacturer = "Unsa Tech",
 
-    capacity = 200 * 1024 * 1024,  -- Общий объем в байтах (200MB)
+    capacity = 20 * 1024 * 1024,  -- Общий объем в байтах (200MB)
     frequency = 1000,               -- Частота в MHz
     latency = 9,                    -- CAS Latency
     voltage = 1.5,                  -- Рабочее напряжение

@@ -141,10 +141,12 @@ local function runApp(self, app, appIndex)
             OC.keypressed = nil
             OC.mousepressed = nil
             OC.mousemoved = nil
-            for i = 1, #APP.threads do
-                local s = CPU:searchThread(APP.threads[i])
-                if s then
-                    CPU:removeThread(s)
+            if not app.backgroundJob then
+                for i = 1, #APP.threads do
+                    local s = CPU:searchThread(APP.threads[i])
+                    if s then
+                        CPU:removeThread(s)
+                    end
                 end
             end
             APP.frame_buffer = json.encode(GPU.frame_buffer)
@@ -165,19 +167,21 @@ local function runApp(self, app, appIndex)
             OC.mousemoved = handleMouseMoved
             GPU.frame_buffer = json.decode(APP.frame_buffer)
             APP.frame_buffer = nil
-            for i = 1, #APP.threads do
-                local success, co = CPU:addThread(function ()end)
-                if success then
-                    local s, core = CPU:searchThread(co)
-                    if core then
-                        CPU.cores[core].threads[s] = APP.threads[i]
-                    elseif s then
-                        CPU.threads[s] = APP.threads[i]
+            if not app.backgroundJob then
+                for i = 1, #APP.threads do
+                    local success, co = CPU:addThread(function ()end)
+                    if success then
+                        local s, core = CPU:searchThread(co)
+                        if core then
+                            CPU.cores[core].threads[s] = APP.threads[i]
+                        elseif s then
+                            CPU.threads[s] = APP.threads[i]
+                        else
+                            print("[OS] Error: App is missing resume processes")
+                        end
                     else
                         print("[OS] Error: App is missing resume processes")
                     end
-                else
-                    print("[OS] Error: App is missing resume processes")
                 end
             end
             local envApps = RAM:read(2)

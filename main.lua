@@ -77,20 +77,20 @@ function love.draw()
 --     love.graphics.print(love.timer.getFPS(), 0, 0)
 --     love.graphics.print("Memory usage: " .. collectgarbage("count") .. " KB", 10, 10)
 
---     local info = Processor:getInfo()
---     love.graphics.print(string.format("Frequency: %d/%d MHz (max: %d, min: %d)", 
---         info.clockSpeed, info.baseClockSpeed, info.maxClockSpeed, info.minClockSpeed), 10, 130)
---     love.graphics.print(string.format("Power usage: %.1f/%d W", 
---         info.powerUsage, info.maxPowerUsage), 10, 150)
---     love.graphics.print(string.format("TDP: %.1f/%d (%.1f%%)", 
---         info.TPD, info.maxTPD, (info.TPD/info.maxTPD)*100), 10, 170)
---     love.graphics.print(string.format("Processes: %d, Auto-boost: %s", 
---         info.threads, info.autoBoost and "ON" or "OFF"), 10, 190)
---     love.graphics.print(string.format("Thermal status: %s", 
---         info.thermalThrottle and "THROTTLING" or "NORMAL"), 10, 210)
---     love.graphics.print(string.format("Load: %s%%", 
---         info.cpuLoad), 10, 225)
---     info = nil
+    local info = Processor:getInfo()
+    love.graphics.print(string.format("Frequency: %d/%d MHz (max: %d, min: %d)", 
+        info.clockSpeed, info.baseClockSpeed, info.maxClockSpeed, info.minClockSpeed), 10, 130)
+    love.graphics.print(string.format("Power usage: %.1f/%d W", 
+        info.powerUsage, info.maxPowerUsage), 10, 150)
+    love.graphics.print(string.format("TDP: %.1f/%d (%.1f%%)", 
+        info.TPD, info.maxTPD, (info.TPD/info.maxTPD)*100), 10, 170)
+    love.graphics.print(string.format("Processes: %d, Auto-boost: %s", 
+        info.threads, info.autoBoost and "ON" or "OFF"), 10, 190)
+    love.graphics.print(string.format("Thermal status: %s", 
+        info.thermalThrottle and "THROTTLING" or "NORMAL"), 10, 210)
+    love.graphics.print(string.format("Load: %s%%", 
+        info.cpuLoad), 10, 225)
+    info = nil
 
 --     love.graphics.print(string.format("Motherboard: %s (BIOS %s)", MB.model, MB.bios.version), 300, 10)
 --     love.graphics.print(string.format("Clock: %.1f MHz (Stability: %.0f%%)", 
