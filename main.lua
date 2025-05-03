@@ -2,20 +2,20 @@
 -- love.window.setFullscreen(true)
 
 --local Processor = require("CPU.Zero1")
--- local Processor = require("CPU.Zero2")
+--local Processor = require("CPU.Zero2")
 -- local Processor = require("CPU.Ore")
-local Processor = require("CPU.Ore2")
---local Processor = require("CPU.Zero5000")
+--local Processor = require("CPU.Ore2")
+local Processor = require("CPU.Zero5000")
 local Alpeg1000 = require("MOTHER.Alpeg1000")
--- local Enma1 = require("POWER.Enma1")
+--local Enma1 = require("POWER.Enma1")
 local Enma1 = require("POWER.Enma3")
 local Swipan = require("COOLER.Swipan")
 local Unsa2x10m = require("RAM.Unsa 2x10m")
 local Huga = require("MONITOR.Huga")
 --local Huga = require("MONITOR.Huga2")
 --local Avrora = require("GPU.Avrora")
---local Avrora = require("GPU.Neptun")
-local Avrora = require("GPU.Avrora2000")
+local Avrora = require("GPU.Neptun")
+--local Avrora = require("GPU.Avrora2000")
 --local Avrora = require("GPU.Zig100")
 --local Avrora = require("GPU.Neptun2000")
 local Typyka = require("DISK.Typyka")
@@ -43,6 +43,11 @@ function love.update(dt)
 end
 
 function love.mousereleased(x, y, button, isTouch)
+    if OC.mousereleasedEvent then
+        for index, value in pairs(OC.mousereleasedEvent) do
+            value(x, y, button, isTouch)
+        end
+    end
     if OC.mousereleased then
         OC.mousereleased(x, y, button, isTouch)
     end
@@ -57,6 +62,12 @@ end
 function love.mousemoved(x, y, dx, dy)
     if OC.mousemoved then
         OC.mousemoved(x, y, dx, dy)
+    end
+end
+
+function love.keyreleased(key)
+    if OC.keyreleased then
+        OC.keyreleased(key)
     end
 end
 
@@ -77,20 +88,20 @@ function love.draw()
 --     love.graphics.print(love.timer.getFPS(), 0, 0)
 --     love.graphics.print("Memory usage: " .. collectgarbage("count") .. " KB", 10, 10)
 
-    local info = Processor:getInfo()
-    love.graphics.print(string.format("Frequency: %d/%d MHz (max: %d, min: %d)", 
-        info.clockSpeed, info.baseClockSpeed, info.maxClockSpeed, info.minClockSpeed), 10, 130)
-    love.graphics.print(string.format("Power usage: %.1f/%d W", 
-        info.powerUsage, info.maxPowerUsage), 10, 150)
-    love.graphics.print(string.format("TDP: %.1f/%d (%.1f%%)", 
-        info.TPD, info.maxTPD, (info.TPD/info.maxTPD)*100), 10, 170)
-    love.graphics.print(string.format("Processes: %d, Auto-boost: %s", 
-        info.threads, info.autoBoost and "ON" or "OFF"), 10, 190)
-    love.graphics.print(string.format("Thermal status: %s", 
-        info.thermalThrottle and "THROTTLING" or "NORMAL"), 10, 210)
-    love.graphics.print(string.format("Load: %s%%", 
-        info.cpuLoad), 10, 225)
-    info = nil
+    -- local info = Processor:getInfo()
+    -- love.graphics.print(string.format("Frequency: %d/%d MHz (max: %d, min: %d)", 
+    --     info.clockSpeed, info.baseClockSpeed, info.maxClockSpeed, info.minClockSpeed), 10, 130)
+    -- love.graphics.print(string.format("Power usage: %.1f/%d W", 
+    --     info.powerUsage, info.maxPowerUsage), 10, 150)
+    -- love.graphics.print(string.format("TDP: %.1f/%d (%.1f%%)", 
+    --     info.TPD, info.maxTPD, (info.TPD/info.maxTPD)*100), 10, 170)
+    -- love.graphics.print(string.format("Processes: %d, Auto-boost: %s", 
+    --     info.threads, info.autoBoost and "ON" or "OFF"), 10, 190)
+    -- love.graphics.print(string.format("Thermal status: %s", 
+    --     info.thermalThrottle and "THROTTLING" or "NORMAL"), 10, 210)
+    -- love.graphics.print(string.format("Load: %s%%", 
+    --     info.cpuLoad), 10, 225)
+    -- info = nil
 
 --     love.graphics.print(string.format("Motherboard: %s (BIOS %s)", MB.model, MB.bios.version), 300, 10)
 --     love.graphics.print(string.format("Clock: %.1f MHz (Stability: %.0f%%)", 
@@ -147,76 +158,56 @@ end
 
 
 
-
-
 -- local data = {}
 -- for image_x = 1, 32 do
 --     data[image_x] = {}
 --     for image_y = 1, 32 do
---         -- Фон (темно-синий)
---         data[image_x][image_y] = {30, 40, 70}
+--         -- Фон (темно-зеленый)
+--         data[image_x][image_y] = {30, 70, 40}
         
---         -- Монитор (основная область)
---         if image_x >= 6 and image_x <= 26 and image_y >= 6 and image_y <= 26 then
---             data[image_x][image_y] = {10, 15, 25}  -- темный фон монитора
-            
---             -- Графики ресурсов
---             -- CPU график (красный)
---             if image_x >= 8 and image_x <= 24 then
---                 local cpu_height = math.floor(5 * math.sin((image_x-8)/3) + 12)
---                 if image_y == cpu_height then
---                     data[image_x][image_y] = {255, 60, 60}
---                 end
---                 -- Подсветка под графиком CPU
---                 if image_y > cpu_height and image_y <= 16 then
---                     data[image_x][image_y] = {80, 20, 20}
---                 end
---             end
-            
---             -- RAM график (зеленый)
---             if image_x >= 8 and image_x <= 24 then
---                 local ram_height = math.floor(4 * math.sin((image_x-6)/4) + 18)
---                 if image_y == ram_height then
---                     data[image_x][image_y] = {60, 255, 60}
---                 end
---                 -- Подсветка под графиком RAM
---                 if image_y > ram_height and image_y <= 22 then
---                     data[image_x][image_y] = {20, 80, 20}
---                 end
---             end
-            
---             -- Разметка монитора
---             if image_y == 16 or image_x == 16 then
---                 data[image_x][image_y] = {80, 80, 100}
---             end
+--         -- Тело змейки (зеленые сегменты)
+--         -- Голова змеи (3x3)
+--         if image_x >= 16 and image_x <= 18 and image_y >= 8 and image_y <= 10 then
+--             data[image_x][image_y] = {0, 200, 0}
 --         end
         
---         -- Рамка монитора (серебристая)
---         if (image_x == 5 or image_x == 27) and image_y >= 5 and image_y <= 27 then
---             data[image_x][image_y] = {180, 180, 190}
---         end
---         if (image_y == 5 or image_y == 27) and image_x >= 5 and image_x <= 27 then
---             data[image_x][image_y] = {180, 180, 190}
+--         -- Тело змеи (извилистая линия)
+--         -- Вертикальный сегмент 1
+--         if image_x == 15 and image_y >= 8 and image_y <= 14 then
+--             data[image_x][image_y] = {0, 255, 0}
 --         end
         
---         -- Подставка монитора
---         if image_y >= 28 then
---             local stand_width = math.abs(image_x - 16)
---             if stand_width <= 4 then
---                 data[image_x][image_y] = {150, 150, 160}
---             end
+--         -- Горизонтальный сегмент 1
+--         if image_y == 15 and image_x >= 12 and image_x <= 15 then
+--             data[image_x][image_y] = {0, 255, 0}
 --         end
         
---         -- Текстовые метки
---         if image_y == 3 then
---             -- Надпись "CPU"
---             if image_x >= 8 and image_x <= 10 then
---                 data[image_x][image_y] = {255, 60, 60}
---             end
---             -- Надпись "RAM"
---             if image_x >= 22 and image_x <= 24 then
---                 data[image_x][image_y] = {60, 255, 60}
---             end
+--         -- Вертикальный сегмент 2
+--         if image_x == 12 and image_y >= 15 and image_y <= 20 then
+--             data[image_x][image_y] = {0, 255, 0}
+--         end
+        
+--         -- Горизонтальный сегмент 2
+--         if image_y == 21 and image_x >= 12 and image_x <= 18 then
+--             data[image_x][image_y] = {0, 255, 0}
+--         end
+        
+--         -- Еда (красный квадратик)
+--         if image_x >= 22 and image_x <= 24 and image_y >= 18 and image_y <= 20 then
+--             data[image_x][image_y] = {255, 60, 60}
+--         end
+        
+--         -- Границы (светло-зеленая рамка)
+--         if image_x == 1 or image_x == 32 or image_y == 1 or image_y == 32 then
+--             data[image_x][image_y] = {100, 200, 100}
+--         end
+        
+--         -- Углы рамки (более светлые)
+--         if (image_x == 1 and image_y == 1) or 
+--            (image_x == 1 and image_y == 32) or 
+--            (image_x == 32 and image_y == 1) or 
+--            (image_x == 32 and image_y == 32) then
+--             data[image_x][image_y] = {150, 255, 150}
 --         end
 --     end
 -- end

@@ -105,79 +105,70 @@ function ProcessorCore:addThread(func)
         local A, X, Y, SR, SP = 0, 0, 0, 0, 128
         local env = {
             LDA = function(v)
-                coroutine.yield()
                 self:applyLoadDelay()
                 A = v
             end,
             STA = function(a)
-                coroutine.yield()
                 self:applyLoadDelay()
                 self.motherboard:writeMemory(a, A)
             end,
             LDX = function(v)
-                coroutine.yield()
                 self:applyLoadDelay()
                 X = v
             end,
             LDY = function(v)
-                coroutine.yield()
                 self:applyLoadDelay()
                 Y = v
             end,
             STX = function(a)
-                coroutine.yield()
                 self:applyLoadDelay()
                 self.motherboard:writeMemory(a, X)
             end,
             STY = function (a)
-                coroutine.yield()
                 self:applyLoadDelay()
                 self.motherboard:writeMemory(a, Y)
             end,
             ADD = function(a, b)
-                coroutine.yield()
                 self:applyLoadDelay()
                 return (a or A) + (b or 0)
             end,
             SUB = function(a, b)
-                coroutine.yield()
                 self:applyLoadDelay()
                 return (a or A) - (b or 0)
             end,
             MUL = function(a, b)
-                coroutine.yield()
                 self:applyLoadDelay()
                 return (a or A) * (b or 1)
             end,
-            DIV = function(a, b) coroutine.yield()
+            DIV = function(a, b)
                 self:applyLoadDelay()
                 return (a or A) / (b or 1)
             end,
-            AND = function(a, b) coroutine.yield()
+            AND = function(a, b)
                 self:applyLoadDelay()
                 return bit.band(a or A, b or 0)
             end,
-            OR = function(a, b) coroutine.yield()
+            OR = function(a, b)
                 self:applyLoadDelay()
                 return bit.bor(a or A, b or 0)
             end,
-            XOR = function(a, b) coroutine.yield()
+            XOR = function(a, b)
                 self:applyLoadDelay()
                 return bit.bxor(a or A, b or 0)
             end,
-            NOT = function(a) coroutine.yield()
+            NOT = function(a)
                 self:applyLoadDelay()
                 return bit.bnot(a or A)
             end,
-            SHL = function(a, b) coroutine.yield()
+            SHL = function(a, b)
                 self:applyLoadDelay()
                 return bit.lshift(a or A, b or 1)
             end,
-            SHR = function(a, b) coroutine.yield()
+            SHR = function(a, b)
                 self:applyLoadDelay()
                 return bit.rshift(a or A, b or 1)
             end,
-            CMP = function(a, b) coroutine.yield()
+            CMP = function(a, b)
                 self:applyLoadDelay()
                 local result = (a or A) - (b or 0)
                 if result == 0 then
@@ -187,35 +178,34 @@ function ProcessorCore:addThread(func)
                 end
                 return result
             end,
-            PUSH = function(v) coroutine.yield()
+            PUSH = function(v)
                 self:applyLoadDelay()
                 self.motherboard:writeMemory(SP, v or A)
                 SP = SP + 1
             end,
             POP = function()
-                coroutine.yield()
                 self:applyLoadDelay()
                 SP = SP - 1
                 return self.motherboard:readMemory(SP)
             end,
-            DRW = function(x, y, r, g, b) coroutine.yield() return self:DRW(x, y, r, g, b) end,
-            DTX = function(x, y, text, color, scale) coroutine.yield() return self:DTX(x, y, text, color, scale) end,
-            DRE = function(x, y, width, height, color) coroutine.yield() return self:DRE(x, y, width, height, color) end,
-            DRM = function(x, y, data) coroutine.yield() return self:DRM(x, y, data) end,
-            DLN = function(x, y, x2, y2, color) coroutine.yield() return self:DLN(x, y, x2, y2, color) end,
+            DRW = function(x, y, r, g, b) return self:DRW(x, y, r, g, b) end,
+            DTX = function(x, y, text, color, scale) return self:DTX(x, y, text, color, scale) end,
+            DRE = function(x, y, width, height, color) return self:DRE(x, y, width, height, color) end,
+            DRM = function(x, y, data) return self:DRM(x, y, data) end,
+            DLN = function(x, y, x2, y2, color) return self:DLN(x, y, x2, y2, color) end,
             SLEEP = function(s) return self:SLEEP(s) end,
 
-            A = function() coroutine.yield() return A end,
-            X = function() coroutine.yield() return X end,
-            Y = function() coroutine.yield() return Y end,
-            SR = function() coroutine.yield() return SR end,
-            SP = function() coroutine.yield() return SP end,
+            A = function() self:applyLoadDelay() return A end,
+            X = function() self:applyLoadDelay() return X end,
+            Y = function() self:applyLoadDelay() return Y end,
+            SR = function() self:applyLoadDelay() return SR end,
+            SP = function() self:applyLoadDelay() return SP end,
 
-            read = function(addr) coroutine.yield() return self.motherboard:readMemory(addr) end,
-            write = function(addr, value) coroutine.yield() return self.motherboard:writeMemory(addr, value) end,
+            read = function(addr) self:applyLoadDelay() return self.motherboard:readMemory(addr) end,
+            write = function(addr, value) self:applyLoadDelay() return self.motherboard:writeMemory(addr, value) end,
 
-            print = function (...) coroutine.yield() print(...) end,
-            pcall = function (...) coroutine.yield() return pcall(...) end
+            print = function (...) self:applyLoadDelay() print(...) end,
+            pcall = function (...) self:applyLoadDelay() return pcall(...) end
         }
 
         setmetatable(env, {__index = _G})

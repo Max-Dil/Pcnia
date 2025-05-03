@@ -112,6 +112,8 @@ function OC:init(data)
 
     --HDD:loadFromFile("TinuOC")
     FILE_SYSTEM = require("OC.TinuOC.fileSystem")
+
+    OC.mousereleasedEvent = {}
     CPU:addThread(function ()
         FILE_SYSTEM:init(function(success, err)
             if not success then
@@ -151,8 +153,6 @@ end
 function OC:startOS()
     CPU:addThread(function ()
         local init = function (kernel)
-            local file = FILE_SYSTEM:open("Dekstop/test.txt", "w")
-            file:write("100", function ()end)
     
             CPU:addThread(function ()
                 write(0, {}) -- apps

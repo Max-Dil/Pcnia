@@ -45,7 +45,8 @@ local function runApp(self, app, appIndex)
         mousereleased = {},
         keypressed = {},
         mousepressed = {},
-        mousemoved = {}
+        mousemoved = {},
+        keyreleased = {}
     }
     
     local function handleMouseReleased(x, y, button)
@@ -85,6 +86,12 @@ local function runApp(self, app, appIndex)
     end
     
     local function handleKeypressed(key, scancode, isrepeat)
+        for i = 1, #__events.keypressed do
+            __events.keypressed[i](key, scancode, isrepeat)
+        end
+    end
+
+    local function handleKeyRelesed(key, scancode, isrepeat)
         for i = 1, #__events.keypressed do
             __events.keypressed[i](key, scancode, isrepeat)
         end
@@ -141,6 +148,7 @@ local function runApp(self, app, appIndex)
             OC.keypressed = nil
             OC.mousepressed = nil
             OC.mousemoved = nil
+            OC.keyreleased = nil
             if not app.backgroundJob then
                 for i = 1, #APP.threads do
                     local s = CPU:searchThread(APP.threads[i])
@@ -165,6 +173,7 @@ local function runApp(self, app, appIndex)
             OC.keypressed = handleKeypressed
             OC.mousepressed = handleMousePressed
             OC.mousemoved = handleMouseMoved
+            OC.keyreleased = handleKeyRelesed
             GPU.frame_buffer = json.decode(APP.frame_buffer)
             APP.frame_buffer = nil
             if not app.backgroundJob then
@@ -214,6 +223,7 @@ local function runApp(self, app, appIndex)
     OC.keypressed = handleKeypressed
     OC.mousepressed = handleMousePressed
     OC.mousemoved = handleMouseMoved
+    OC.keyreleased = handleKeyRelesed
     
     local envApps = RAM:read(2)
     if envApps[app.name .. ":" .. app.version] then
