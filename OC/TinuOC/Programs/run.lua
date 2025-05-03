@@ -92,8 +92,8 @@ local function runApp(self, app, appIndex)
     end
 
     local function handleKeyRelesed(key, scancode, isrepeat)
-        for i = 1, #__events.keypressed do
-            __events.keypressed[i](key, scancode, isrepeat)
+        for i = 1, #__events.keyreleased do
+            __events.keyreleased[i](key, scancode, isrepeat)
         end
     end
     
