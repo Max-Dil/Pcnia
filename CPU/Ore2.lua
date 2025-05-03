@@ -130,12 +130,7 @@ function ProcessorCore:SLEEP(seconds)
     end
 end
 
-Processor.addThread = function(self, func)
-    if self:calculatePotentialPower(#self.threads + 1) > self.maxPowerUsage then
-        print("Warning: Adding this thread would exceed power limits!")
-        return false
-    end
-
+function ProcessorCore:addThread(func)
     local co = coroutine.create(function()
         local regs = {
             AX = 0, BX = 0, CX = 0, DX = 0,
@@ -237,11 +232,11 @@ Processor.addThread = function(self, func)
             pcall = function(...) self:applyLoadDelay() return pcall(...) end
         }
 
-        env.A = function() self:applyLoadDelay() return regs.AX end
-        env.X = function() self:applyLoadDelay() return regs.BX end
-        env.Y = function() self:applyLoadDelay() return regs.CX end
-        env.SR = function() self:applyLoadDelay() return regs.FLAGS end
-        env.SP = function() self:applyLoadDelay() return regs.SP end
+        env.A = function() coroutine.yield() return regs.AX end
+        env.X = function() coroutine.yield() return regs.BX end
+        env.Y = function() coroutine.yield() return regs.CX end
+        env.SR = function() coroutine.yield() return regs.FLAGS end
+        env.SP = function() coroutine.yield() return regs.SP end
 
         setmetatable(env, {__index = _G})
         setfenv(func, env)
