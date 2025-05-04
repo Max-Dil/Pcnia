@@ -272,6 +272,9 @@ function OC:startOS()
                             end
                             return result
                         end
+
+                        DRE(0, MONITOR.resolution.height-30, MONITOR.resolution.width, 30, {30, 30, 30})
+                        DRE(10, MONITOR.resolution.height - 25, 20, 20, {100, 100,100})
             
                         OC.mousereleased = function (x, y)
                             local scaleX = love.graphics.getWidth() / MONITOR.resolution.width

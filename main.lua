@@ -3,7 +3,7 @@
 
 --local Processor = require("CPU.Zero1")
 --local Processor = require("CPU.Zero2")
--- local Processor = require("CPU.Ore")
+--local Processor = require("CPU.Ore")
 local Processor = require("CPU.Ore2")
 --local Processor = require("CPU.Zero5000")
 local Alpeg1000 = require("MOTHER.Alpeg1000")
