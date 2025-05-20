@@ -8,24 +8,27 @@ local Processor = require("CPU.Ore2")
 --local Processor = require("CPU.Zero5000")
 local Alpeg1000 = require("MOTHER.Alpeg1000")
 --local Enma1 = require("POWER.Enma1")
-local Enma1 = require("POWER.Enma3")
+local Enma1 = require("POWER.Oni-X")
 local Swipan = require("COOLER.Swipan")
 local Unsa2x10m = require("RAM.Unsa 2x10m")
 local Huga = require("MONITOR.Huga")
 --local Huga = require("MONITOR.Huga2")
 --local Avrora = require("GPU.Avrora")
-local Avrora = require("GPU.Neptun")
+--local Avrora = require("GPU.Neptun")
 --local Avrora = require("GPU.Avrora2000")
 --local Avrora = require("GPU.Zig100")
---local Avrora = require("GPU.Neptun2000")
+local Avrora = require("GPU.Neptun2000")
 local Typyka = require("DISK.Typyka")
 local OC = require("OC.TinuOC")
 local font = love.graphics.newFont(14)
 _G.love = love
 
+LIVE = require("LIVE")
 local json = require("json")
 
-function love.load()
+require("mane")
+
+function mane.load()
     OC:init({
         processor = Processor,
         mother = Alpeg1000,
@@ -36,13 +39,17 @@ function love.load()
         blockEnergy = Enma1,
         monitor = Huga
     })
+    OC.launch = true
 end
 
-function love.update(dt)
-    OC:update(dt)
+function mane.update(dt)
+    if OC.launch then
+        OC:update(dt)
+    end
 end
 
-function love.mousereleased(x, y, button, isTouch)
+function mane.mousereleased(x, y, button, isTouch)
+    if OC.launch then
     if OC.mousereleasedEvent then
         for index, value in pairs(OC.mousereleasedEvent) do
             value(x, y, button, isTouch)
@@ -51,42 +58,45 @@ function love.mousereleased(x, y, button, isTouch)
     if OC.mousereleased then
         OC.mousereleased(x, y, button, isTouch)
     end
+    end
 end
 
-function love.mousepressed(x, y, button, isTouch)
-    if OC.mousepressed then
+function mane.mousepressed(x, y, button, isTouch)
+    if OC.mousepressed and OC.launch then
         OC.mousepressed(x, y, button, isTouch)
     end
 end
 
-function love.mousemoved(x, y, dx, dy)
-    if OC.mousemoved then
+function mane.mousemoved(x, y, dx, dy)
+    if OC.mousemoved and OC.launch then
         OC.mousemoved(x, y, dx, dy)
     end
 end
 
-function love.keyreleased(key)
-    if OC.keyreleased then
+function mane.keyreleased(key)
+    if OC.keyreleased and OC.launch then
         OC.keyreleased(key)
     end
 end
 
-function love.keypressed(key, scancode, isrepeat)
-    if OC.keypressed then
+function mane.keypressed(key, scancode, isrepeat)
+    if OC.keypressed and OC.launch then
         OC.keypressed(key, scancode, isrepeat)
     end
 end
 
-function love.draw()
-    OC:draw()
+function mane.draw()
+    if OC.launch then
+        OC:draw()
+    end
 
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.setFont(font)
-    love.graphics.scale(0.8, 0.8)
-    love.graphics.translate(300, 200)
+    -- love.graphics.setColor(1, 1, 1)
+    -- love.graphics.setFont(font)
+    -- love.graphics.scale(0.8, 0.8)
+    -- love.graphics.translate(300, 200)
 
---     love.graphics.print(love.timer.getFPS(), 0, 0)
---     love.graphics.print("Memory usage: " .. collectgarbage("count") .. " KB", 10, 10)
+    love.graphics.print(love.timer.getFPS(), 0, 0)
+    love.graphics.print("Memory usage: " .. collectgarbage("count") .. " KB", 10, 10)
 
     -- local info = Processor:getInfo()
     -- love.graphics.print(string.format("Frequency: %d/%d MHz (max: %d, min: %d)", 

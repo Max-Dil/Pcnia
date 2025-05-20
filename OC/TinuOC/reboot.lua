@@ -33,6 +33,7 @@ local function reboot(self)
         MONITOR:powerOff()
         MONITOR:powerOn()
     
+        print("[OS] Start system...")
         CPU:addThread(function()
             SLEEP(1)
     
