@@ -10,8 +10,8 @@ function m.init(OC, listener)
             return OC.devices.CPU:addThread(...)
         end
 
-        function m.Temp()
-            LDX{i = 1, address = NIL, find = NIL}
+        function m.TEMP()
+            LDX{i = 7, address = NIL, find = NIL} -- start 7 to Tinu.lua
             while not X().address do
                 X().find = A().__read(X().i)
                 if X().find == 0 then
