@@ -77,6 +77,19 @@ return function (self)
             self.motherboard:writeMemory(a, regs.CX)
         end,
 
+        IF = function (condition, callback, elsecallback)
+            self:applyLoadDelay()
+            if condition then
+                if callback then
+                    callback()
+                end
+            else
+                if elsecallback then
+                    elsecallback()
+                end
+            end
+        end,
+
         getReg = function(name)
             self:applyLoadDelay()
             return regs[name] or 0
@@ -141,6 +154,10 @@ return function (self)
                 coroutine.yield()
             end
         end,
+
+        NIL = nil,
+        TRUE = true,
+        FALSE = false,
 
         read = function(addr) self:applyLoadDelay() return self.motherboard:readMemory(addr) end,
         write = function(addr, value) self:applyLoadDelay() return self.motherboard:writeMemory(addr, value) end,

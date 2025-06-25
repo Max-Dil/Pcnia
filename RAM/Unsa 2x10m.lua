@@ -6,7 +6,7 @@ local Unsa2x1GB = {
     version = "1.0",
     manufacturer = "Unsa Tech",
 
-    capacity = 20 * 1024 * 1024,  -- Общий объем в байтах (200MB)
+    capacity = 20 * 1024 * 1024,  -- Общий объем в байтах (20MB)
     frequency = 1000,               -- Частота в MHz
     latency = 9,                    -- CAS Latency
     voltage = 1.5,                  -- Рабочее напряжение
@@ -76,20 +76,20 @@ function Unsa2x1GB:_getDataSize(value)
     local t = type(value)
     
     if t == "number" then
-        return 8
+        return 1
     elseif t == "string" then
-        return #value * 8
+        return #value
     elseif t == "boolean" then
-        return 8
+        return 1
     elseif t == "function" then
-        return #string.dump(value) * 8
+        return #string.dump(value)
     elseif t == "table" then
         local success, encoded = pcall(json.encode, value)
-        return success and #encoded * 8 or 0
+        return success and #encoded or 0
     elseif t == "nil" then
         return 0
     else
-        return 8
+        return 1
     end
 end
 
@@ -183,7 +183,9 @@ function Unsa2x1GB:_calculateLatency()
 end
 
 function Unsa2x1GB:_simulateBusy(duration)
-    love.timer.sleep(duration)
+    local start = os.clock()
+    while os.clock() - start < duration do end
+    
     self.temperature = math.min(85, self.temperature + duration * 10)
 end
 

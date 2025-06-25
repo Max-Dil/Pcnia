@@ -75,6 +75,18 @@ return function (self)
             end
             return result
         end,
+        IF = function (condition, callback, elsecallback)
+            self:applyLoadDelay()
+            if condition then
+                if callback then
+                    callback()
+                end
+            else
+                if elsecallback then
+                    elsecallback()
+                end
+            end
+        end,
         PUSH = function(v)
             self:applyLoadDelay()
             self.motherboard:writeMemory(SP, v or A)
@@ -146,6 +158,10 @@ return function (self)
         Y = function() self:applyLoadDelay() return Y end,
         SR = function() self:applyLoadDelay() return SR end,
         SP = function() self:applyLoadDelay() return SP end,
+
+        NIL = nil,
+        TRUE = true,
+        FALSE = false,
 
         read = function(addr) self:applyLoadDelay() return self.motherboard:readMemory(addr) end,
         write = function(addr, value) self:applyLoadDelay() return self.motherboard:writeMemory(addr, value) end,

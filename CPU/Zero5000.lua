@@ -140,12 +140,14 @@ end
 
 function Processor:updatePerformance()
     local thermalFactor = 1 - math.min(1, self.TPD / self.maxTPD)
+    local totalPerformanceFactor = 0
 
     for _, core in ipairs(self.cores) do
         core:updatePerformanceFactor(self.cpuLoad, thermalFactor)
+        totalPerformanceFactor = totalPerformanceFactor + core.performanceFactor
     end
 
-    self.performanceFactor = (self.cores[1].performanceFactor + self.cores[2].performanceFactor) / 2
+    self.performanceFactor = totalPerformanceFactor / #self.cores
 end
 
 function Processor:addThread(func)
@@ -209,7 +211,7 @@ function Processor:calculatePotentialPower(numThreads)
 end
 
 function Processor:updatePowerUsage()
-    local totalThreads = #self.cores[1].threads + #self.cores[2].threads
+    local totalThreads = self:countActiveThreads()
     local load = totalThreads / (8 * self.countCores)
     local newPower = self.maxPowerUsage * load * (self.currentClockSpeed / self.baseClockSpeed)
 
