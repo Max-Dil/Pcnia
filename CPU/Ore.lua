@@ -60,7 +60,7 @@ local Processor = {
 
 Processor.applyLoadDelay = function(self)
     if self.performanceFactor < 0.3 then
-        local delay = (1 - self.performanceFactor) * 0.1
+        local delay = (1 - self.performanceFactor) * 0.04
         local start = love.timer.getTime()
         while (love.timer.getTime() - start) < delay do end
     end

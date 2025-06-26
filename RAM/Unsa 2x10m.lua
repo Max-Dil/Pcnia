@@ -102,9 +102,9 @@ function Unsa2x1GB:read(address, size)
     
     for i = address, address + size - 1 do
         if self._memory[i] then
-            table.insert(data, self._memory[i].value or 0)
+            table.insert(data, self._memory[i].value or nil)
         else
-            table.insert(data, 0)
+            table.insert(data, nil)
         end
     end
     

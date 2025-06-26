@@ -11,4 +11,5 @@ return require("OC.Tinu.core.init")
 4 - file system
 5 - oc event system 
 6 - processes kesh
+7 - shell
 ]]

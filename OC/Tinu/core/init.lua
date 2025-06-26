@@ -61,19 +61,17 @@ OC.init = function(config)
                             if is_load ~= "true" then
                                 config.disk:write("is_load", "true", function(success)
                                     if success then
-                                        print("start")
-                                        --config.disk:saveToFile("TinuOC")
-                                        --startOS()
+                                        config.disk:saveToFile("TinuOC")
+                                        OC.start(X())
                                     end
                                 end)
                             else
-                                config.gpu:clear()
-                                print("start")
-                                X().addProcess("test", function ()
-                                    print(99)
-                                end, function (suc, co)
-                                    print(suc, co)
-                                end)
+                                OC.start(X())
+                                -- X().addProcess("test", function ()
+                                --     print(99)
+                                -- end, function (suc, co)
+                                --     print(suc, co)
+                                -- end)
                             
                                 -- local file = Y():open("test.txt", "w")
                                 -- file:write("test", function (success, errors)
@@ -95,16 +93,34 @@ OC.init = function(config)
                                 --         end)
                                 --     end)
                                 -- end)
-                                --startOS()
                             
-                                read(5).mk_event("keypressed", function (e)
-                                    print(e.key)
-                                end)
+                                -- read(5).mk_event("keypressed", function (e)
+                                --     print(e.key)
+                                -- end)
                             end
                         end)
                 end, config.disk, OC)
             end)
         end)
+    end)
+end
+
+OC.start = function (process)
+    process.addProcess("start_os", function ()
+        LDA(require("OC.Tinu.core.shell"))
+        OC.devices.GPU:clear()
+        A().run(process)
+        write(7, A())
+        print("start")
+        process.removeProcess("start_os", function (succes, error)
+            if not succes then
+                print("[OC] error delete start process "..error)
+            end
+        end)
+    end, function (success, erorr)
+        if not success then
+            print("[OC] error launch start process "..erorr)
+        end
     end)
 end
 

@@ -10,7 +10,7 @@ fileSystem = {
             LDY{listener = listener}
             LDA(read(0))
             LDX(read(2))
-            temp = X() == 0 and temp or X()
+            temp = X() and X() or temp
             Y().listener(temp)
         end)
     end,

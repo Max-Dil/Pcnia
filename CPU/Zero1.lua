@@ -1,6 +1,7 @@
 local bit = require("bit")
 local arch = require("CPU.arch.8")
 local Processor = {
+    
     model = "Zero1",
     version = "1.4",
 
@@ -35,7 +36,7 @@ local Processor = {
 
 function Processor:applyLoadDelay()
     if self.performanceFactor < 0.3 then
-        local delay = (1 - self.performanceFactor) * 0.1
+        local delay = (1 - self.performanceFactor) * 0.08
         local start = love.timer.getTime()
         while (love.timer.getTime() - start) < delay do end
     end

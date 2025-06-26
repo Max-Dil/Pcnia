@@ -163,8 +163,9 @@ return function (self)
         TRUE = true,
         FALSE = false,
 
-        read = function(addr) self:applyLoadDelay() return self.motherboard:readMemory(addr) end,
-        write = function(addr, value) self:applyLoadDelay() return self.motherboard:writeMemory(addr, value) end,
+        read = function(addr) return self.motherboard:readMemory(addr) end,
+        write = function(addr, value) return self.motherboard:writeMemory(addr, value) end,
+        free = function(addr, count) return self.motherboard:freeMemory(addr, count) end,
 
         print = function (...) self:applyLoadDelay() print(...) end,
         pcall = function (...) self:applyLoadDelay() return pcall(...) end

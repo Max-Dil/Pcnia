@@ -54,6 +54,12 @@ local Alpeg1000 = {
             if #self.memoryModules > 0 then
                 self.memoryModules[1]:write(address, ...)
             end
+        end,
+
+        free = function(self, address, count)
+            if #self.memoryModules > 0 then
+                self.memoryModules[1]:free(address, count)
+            end
         end
     },
 
@@ -66,6 +72,10 @@ end
 
 function Alpeg1000:writeMemory(address, value)
     self.memoryController:write(address, value)
+end
+
+function Alpeg1000:freeMemory(address, count)
+    return self.memoryController:free(address, count)
 end
 
 function Alpeg1000:init(cpu)

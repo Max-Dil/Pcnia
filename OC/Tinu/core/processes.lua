@@ -14,7 +14,7 @@ function m.init(OC, listener)
         end
 
         LDA(read(6))
-        IF(A() == 0, function ()
+        IF(not A(), function ()
             write(6, {
                 processes = {},
                 counter = 0
