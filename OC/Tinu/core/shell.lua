@@ -1,9 +1,3 @@
--- shell.lua
--- Version 1.2: Refactored command logic into an external module.
--- Version 1.1: Implemented graphical console and memory management.
-
--- Assumes 'commands.lua' is available and can be loaded.
--- The loading mechanism might vary based on the environment (e.g., require, loadfile).
 local commands = require("OC.Tinu.core.commands")
 
 local shell = {
@@ -21,6 +15,7 @@ shell.run = function (process)
         LDA(read(0))
         LDX(read(5))
         LDY(read(1))
+        commands.init({oc = Y(), process = process})
 
         ----------------------------------------------------------------------
         -- Memory Allocation & Constants
@@ -81,6 +76,7 @@ shell.run = function (process)
             else
                 write(consoleStartAddr, (start + 1) % CONSOLE_MAX_LINES)
             end
+            print(text)
         end
 
         local function clearConsole()
@@ -89,16 +85,11 @@ shell.run = function (process)
             free(consoleBufferAddr+1, CONSOLE_MAX_LINES)
         end
         
-        local function rebootSystem()
-            addLineToConsole("Rebooting system...")
-            SLEEP(1)
-        end
-
         local shell_api = alloc()
         write(shell_api, {
             version = shell.version,
             clear = clearConsole,
-            reboot = rebootSystem
+            addLineToConsole = addLineToConsole
         })
 
         ----------------------------------------------------------------------
@@ -131,7 +122,7 @@ shell.run = function (process)
                     end
                     free(parts)
 
-                    if commands[read(cmd)] then
+                    if commands[read(cmd)] and read(cmd) ~= "init" then
                         commands[read(cmd)](read(shell_api), read(args), addLineToConsole)
                     else
                         addLineToConsole("Unknown command: '" .. read(cmd) .. "'")
@@ -153,9 +144,15 @@ shell.run = function (process)
         ----------------------------------------------------------------------
         addLineToConsole("Virtual Shell v" .. shell.version .. ". Type 'help' for commands.")
 
-        SLEEP(1)
+        local speed = 0.05 -- 20 фпс
+        if Y().devices.model == "Zero1" then
+            speed = 1 -- 1 фпс
+        elseif Y().devices.model == "Ore" or Y().devices.model == "Zero2" or Y().devices.model == "Zero5000" then
+            speed = 0.1 -- 10 фпс
+        end
+        coroutine.yield()
         while TRUE do
-            SLEEP(0.05) -- ~20 FPS
+            SLEEP(speed)
             Y().devices.GPU:clear()
             local start = read(consoleStartAddr)
             local count = read(consoleCountAddr)
@@ -181,6 +178,7 @@ shell.run = function (process)
                 local cursorX = 5 + (#(prompt .. currentInput) * FONT_WIDTH)
                 DRE(cursorX, promptY, FONT_WIDTH, FONT_HEIGHT, read(textColorAddr))
             end
+            coroutine.yield()
         end
     end, function (success, error)
         if not success then

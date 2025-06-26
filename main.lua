@@ -1,7 +1,7 @@
 _G.love = love
 _G.json = require("json")
 
-local CPU = require("CPU.Zero1")
+local CPU = require("CPU.Ore2")
 local GPU = require("GPU.Avrora")
 local MOTHER = require("MOTHER.Alpeg1000")
 local BLOCK = require("POWER.Enma1")
@@ -12,6 +12,7 @@ local DISK = require("DISK.Typyka")
 
 local OC = require("OC.Tinu")
 
+love.window.setMode(1200, 900, {vsync = 0})
 function love.load()
     OC.init({
         cpu = CPU,

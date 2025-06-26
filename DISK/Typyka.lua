@@ -318,21 +318,24 @@ function Typyka:saveToFile(filename)
     local json = require("json")
     local success, jsonStr = pcall(json.encode, saveData)
     if not success then
-        self:triggerEvent("error", "Failed to encode save data: " .. jsonStr)
+        self:triggerEvent("error", "Failed to encode save data: " .. tostring(jsonStr))
         return false
     end
 
-    local success, message = pcall(function()
-        local file = love.filesystem.newFile(filename)
-        file:open("w")
-        file:write(jsonStr)
-        file:close()
-    end)
+    local file, message = love.filesystem.openFile(filename, "w")
+    if not file then
+        self:triggerEvent("error", "Failed to open file for writing: " .. tostring(message))
+        return false
+    end
 
+    local success, write_message = file:write(jsonStr)
     if not success then
-        self:triggerEvent("error", "Failed to save file: " .. message)
+        self:triggerEvent("error", "Failed to write to file: " .. tostring(write_message))
+        file:close()
         return false
     end
+
+    file:close()
 
     return true
 end
@@ -341,27 +344,28 @@ function Typyka:loadFromFile(filename)
     filename = filename or "Typyka_data.temp"
 
     if not love.filesystem.getInfo(filename) then
-        self:triggerEvent("error", "Save file not found")
         return false
     end
 
-    local success, jsonStr = pcall(function()
-        local file = love.filesystem.newFile(filename)
-        file:open("r")
-        local content = file:read()
+    local file, message = love.filesystem.openFile(filename, "r")
+    if not file then
+        self:triggerEvent("error", "Failed to open file for reading: " .. tostring(message))
+        return false
+    end
+
+    local content, read_message = file:read()
+    if not content then
+        self:triggerEvent("error", "Failed to read from file: " .. tostring(read_message))
         file:close()
-        return content
-    end)
-
-    if not success then
-        self:triggerEvent("error", "Failed to read file: " .. jsonStr)
         return false
     end
+
+    file:close()
 
     local json = require("json")
-    local success, saveData = pcall(json.decode, jsonStr)
+    local success, saveData = pcall(json.decode, content)
     if not success then
-        self:triggerEvent("error", "Failed to decode save data: " .. saveData)
+        self:triggerEvent("error", "Failed to decode save data: " .. tostring(saveData))
         return false
     end
 

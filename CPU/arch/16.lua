@@ -148,7 +148,6 @@ return function (self)
             end
         end,
         SLEEP = function(s)
-            self:applyLoadDelay()
             local start = self.lastTime or love.timer.getTime()
             while (love.timer.getTime() - start) < s do
                 coroutine.yield()

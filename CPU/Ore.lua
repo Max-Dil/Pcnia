@@ -18,7 +18,7 @@ local Processor = {
         BP = 0,  -- Base Pointer
         SP = 0xFFFF,  -- Stack Pointer (инициализирован в верхушку стека)
         IP = 0,  -- Instruction Pointer
-        FLAGS = 0, 
+        FLAGS = 0,
     },
 
     FLAGS_MASK = {

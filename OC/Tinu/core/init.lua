@@ -4,6 +4,7 @@ local OC = {
 
 OC.init = function(config)
     config.gpu.driver = "Unakoda"
+    OC.config = config
     OC.devices = {
         CPU = config.cpu,
         GPU = config.gpu:init(config.cpu),
@@ -49,7 +50,7 @@ OC.init = function(config)
                 LDY(require("OC.Tinu.core.fileSystem"))
 
                 write(5, require("OC.Tinu.core.evs"))
-                read(5).init(OC)
+                read(5).init(OC, X())
 
                 write(4, Y())
                 Y():init(function(success, err)

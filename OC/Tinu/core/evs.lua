@@ -1,58 +1,82 @@
 local evs = {}
+local eventQueue = {}
 
-evs.init = function (OC)
+evs.init = function (OC, process)
     evs.data = {
         keypressed = {},
         keyreleased = {},
     }
     OC.evs = evs
-    evs.__addThread = function (...)
-        return OC.devices.CPU:addThread(...)
-    end
 
-    OC.devices.CPU:addThread(function ()
-evs.predict = function (name, data)
-    LDY{name = name, data = data}
-    LDA(evs)
-    if A().data[Y().name] then
-        for index, value in ipairs(A().data[name]) do
-            LDX{index = index, value = value}
-            X().value(Y().data)
+    process.addProcess("evs.lua", function ()
+        local speed = 0.05 -- 20 фпс
+        if OC.devices.model == "Zero1" then
+            speed = 1 -- 1 фпс
+        elseif OC.devices.model == "Ore" or OC.devices.model == "Zero2" or OC.devices.model == "Zero5000" then
+            speed = 0.1 -- 10 фпс
         end
-    else
-        error("[EVS] no support to event: "..Y().name, 2)
-    end
-end
+        while true do
+            SLEEP(speed)
+            if #eventQueue > 0 then
+                local operation = table.remove(eventQueue, 1)
+
+                if operation then
+                    if operation.type == "predict" then
+                        local name = operation.name
+                        local data = operation.data
+
+                        if evs.data[name] then
+                            for _, callback in ipairs(evs.data[name]) do
+                                callback(data)
+                            end
+                        else
+                            error("[EVS] no support to event: " .. name, 2)
+                        end
+                    elseif operation.type == "mk_event" then
+                        local name = operation.name
+                        local callback = operation.callback
+
+                        if evs.data[name] then
+                            table.insert(evs.data[name], callback)
+                        else
+                            error("[EVS] no support to event: " .. name, 2)
+                        end
+                    elseif operation.type == "rm_event" then
+                        local name = operation.name
+                        local callback = operation.callback
+
+                        if evs.data[name] then
+                            for index, value in ipairs(evs.data[name]) do
+                                if value == callback then
+                                    table.remove(evs.data[name], index)
+                                    break
+                                end
+                            end
+                        else
+                            error("[EVS] no support to event: " .. name, 2)
+                        end
+                    end
+                end
+            end
+            coroutine.yield()
+        end
+    end, function (success, error)
+        if not success then
+            print("[EVS] Error start evs system: "..error)
+        end
     end)
+end
+
+evs.predict = function (name, data)
+    table.insert(eventQueue, {type = "predict", name = name, data = data})
 end
 
 evs.mk_event = function (name, callback)
-    evs.__addThread(function ()
-        LDY{name=name, callback=callback}
-        LDA(evs)
-        if A().data[Y().name] then
-            table.insert(A().data[Y().name], Y().callback)
-        else
-            error("[EVS] no support to event: "..Y().name, 2)
-        end
-    end)
+    table.insert(eventQueue, {type = "mk_event", name = name, callback = callback})
 end
 
 evs.rm_event = function (name, callback)
-    evs.__addThread(function ()
-        LDY{callback = callback, name = name}
-        LDA(evs)
-        if A().data[Y().name] then
-            for index, value in ipairs(A().data[name]) do
-                LDX{index = index, value = value}
-                IF(X().value == Y().callback, function ()
-                    table.remove(A().data[Y().name], X().index)
-                end)
-            end
-        else
-            error("[EVS] no support to event: "..Y().name, 2)
-        end
-    end)
+    table.insert(eventQueue, {type = "rm_event", name = name, callback = callback})
 end
 
 return evs

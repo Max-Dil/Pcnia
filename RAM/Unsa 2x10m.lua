@@ -76,20 +76,20 @@ function Unsa2x1GB:_getDataSize(value)
     local t = type(value)
     
     if t == "number" then
-        return 1
+        return 8
     elseif t == "string" then
-        return #value
+        return #value * 8
     elseif t == "boolean" then
-        return 1
+        return 8
     elseif t == "function" then
-        return #string.dump(value)
+        return #string.dump(value) * 8
     elseif t == "table" then
         local success, encoded = pcall(json.encode, value)
-        return success and #encoded or 0
+        return success and #encoded * 8 or 1
     elseif t == "nil" then
         return 0
     else
-        return 1
+        return 8
     end
 end
 
