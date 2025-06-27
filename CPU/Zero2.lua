@@ -172,7 +172,7 @@ function DualCoreProcessor:searchThread(co)
     end
     for i = 1, #self.cores[2].threads do
         if self.cores[2].threads[i] == co then
-            return i - #self.cores[1].threads, 2
+            return #self.cores[1].threads + i, 2
         end
     end
 end

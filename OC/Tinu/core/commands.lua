@@ -9,11 +9,42 @@ end
 commands.help = function (shell, args, callback)
     process.addProcess("[COMMANDS] - help", function ()
         LDY{shell = shell, args = args, callback = callback}
-        callback("Commands: help, clear, ver, reboot, time")
+        callback("Commands: help, clear, ver, reboot, time, processes")
         process.removeProcess("[COMMANDS] - help")
     end, function (success, error)
         if not success then
             callback("Error start command [help]:" .. error)
+        end
+    end)
+end
+
+commands.processes = function (shell, args, callback)
+    process.addProcess("[COMMANDS] - processes", function ()
+        LDY{shell = shell, args = args, callback = callback}
+        if args[1] == "list" then
+            process.list(function (list)
+                if shell.addLineToConsole then shell.addLineToConsole("======= Processes =======") end
+                for index, value in ipairs(list) do
+                    if value.name ~= "[COMMANDS] - processes" then
+                        if shell.addLineToConsole then shell.addLineToConsole("P: "..value.id.." name: "..value.name.." status: "..value.status) end
+                    end
+                end
+                if shell.addLineToConsole then shell.addLineToConsole("======= End =======") end
+                process.removeProcess("[COMMANDS] - processes")
+            end)
+        elseif args[1] == "remove" then
+            local name = args[2]
+            process.removeProcess(name, function (success, error)
+                if success then
+                    if shell.addLineToConsole then shell.addLineToConsole("Processes "..name.." success delete.") end
+                else
+                    if shell.addLineToConsole then shell.addLineToConsole("Error processes "..name.." delete: "..error) end
+                end
+            end)
+        end
+    end, function (success, error)
+        if not success then
+            callback("Error start command [processes]:" .. error)
         end
     end)
 end

@@ -116,7 +116,7 @@ shell.run = function (process)
                     local args = alloc()
                     write(args, {})
                     if #read(parts) > 1 then
-                        for i = 2, #parts do
+                        for i = 2, #read(parts) do
                             table.insert(read(args), read(parts)[i])
                         end
                     end
@@ -132,6 +132,10 @@ shell.run = function (process)
                 end
 
                 write(inputBufferAddr, "")
+            elseif e.key == "space" then
+                if #currentInput < 80 then
+                    write(inputBufferAddr, currentInput .. " ")
+                end
             elseif e.key and #e.key > 0 then
                 if #currentInput < 80 then
                     write(inputBufferAddr, currentInput .. e.key)

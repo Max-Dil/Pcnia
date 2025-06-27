@@ -12,7 +12,8 @@ local DISK = require("DISK.Typyka")
 
 local OC = require("OC.Tinu")
 
-love.window.setMode(1200, 900, {vsync = 0})
+-- love.window.setMode(1200, 900, {vsync = 0})
+love.window.setMode(1200, 900)
 function love.load()
     OC.init({
         cpu = CPU,

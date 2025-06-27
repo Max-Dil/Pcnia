@@ -196,13 +196,16 @@ function Processor:removeThread(index)
 end
 
 function Processor:searchThread(co)
+    local globalIndex = 0
     for core = 1, #self.cores, 1 do
         for i = 1, #self.cores[core].threads do
+            globalIndex = globalIndex + 1
             if self.cores[core].threads[i] == co then
-                return i, core
+                return globalIndex, core
             end
         end
     end
+    return nil
 end
 
 function Processor:calculatePotentialPower(numThreads)

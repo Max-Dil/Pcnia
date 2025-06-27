@@ -116,9 +116,9 @@ function m.init(OC, listener)
                             return NIL
                         end
 
-                        LDX(m.__searchThread(A().processes[Y().name].thread))
-                        if X() then
-                            m.__removeThread(X())
+                        LDX({m.__searchThread(A().processes[Y().name].thread)})
+                        if X()[1] then
+                            m.__removeThread(X()[1])
                         end
 
                         A().processes[Y().name] = NIL
