@@ -1,109 +1,221 @@
+-- commands.lua
 local commands = {}
-local oc, process
+local oc, process, fs
+
+local function resolvePath(currentDir, targetPath)
+    if not targetPath or targetPath == "" then
+        return currentDir
+    end
+
+    if string.sub(targetPath, 1, 1) == "/" then
+        currentDir = "/"
+        targetPath = string.sub(targetPath, 2)
+    end
+
+    local currentParts = {}
+    for part in string.gmatch(currentDir, "[^/]+") do
+        table.insert(currentParts, part)
+    end
+
+    for part in string.gmatch(targetPath, "[^/]+") do
+        if part == ".." then
+            table.remove(currentParts)
+        elseif part ~= "." then
+            table.insert(currentParts, part)
+        end
+    end
+
+    local newPath = "/" .. table.concat(currentParts, "/")
+    if #currentParts > 0 and newPath ~= "/" then
+    end
+    
+    return newPath
+end
 
 commands.init = function (config)
     oc = config.oc
     process = config.process
+    fs = config.fs
 end
 
 commands.help = function (shell, args, callback)
     process.addProcess("[COMMANDS] - help", function ()
-        LDY{shell = shell, args = args, callback = callback}
-        callback("Commands: help, clear, ver, reboot, time, processes")
+        callback("Commands: help, clear, ver, reboot, time, processes, ls, cd, mkdir, rmdir")
         process.removeProcess("[COMMANDS] - help")
-    end, function (success, error)
-        if not success then
-            callback("Error start command [help]:" .. error)
-        end
     end)
 end
 
+commands.ls = function (shell, args, callback)
+    process.addProcess("[COMMANDS] - ls", function()
+        local currentDir = shell.getCurrentDirectory()
+        local targetPath = args[1] or ""
+        local pathToList = resolvePath(currentDir, targetPath)
+
+        fs:getDirFiles(pathToList, function(files, directories)
+            if not files and not directories then
+                callback("ls: cannot access '" .. pathToList .. "': No such file or directory")
+                process.removeProcess("[COMMANDS] - ls")
+                return
+            end
+
+            callback("Contents of " .. pathToList .. ":")
+            for _, dirName in ipairs(directories) do
+                callback("  [DIR] " .. dirName)
+            end
+            for fileName, _ in pairs(files) do
+                callback("  " .. fileName)
+            end
+            process.removeProcess("[COMMANDS] - ls")
+        end, true)
+    end)
+end
+
+commands.cd = function (shell, args, callback)
+    process.addProcess("[COMMANDS] - cd", function()
+        local targetDir = args[1]
+        if not targetDir then
+            shell.setCurrentDirectory("/")
+            process.removeProcess("[COMMANDS] - cd")
+            return
+        end
+
+        local currentDir = shell.getCurrentDirectory()
+        local newPath = resolvePath(currentDir, targetDir)
+
+        if newPath == "/" then
+            shell.setCurrentDirectory("/")
+            process.removeProcess("[COMMANDS] - cd")
+            return
+        end
+
+        fs:isDirectory(newPath, function(isDir, err)
+            if isDir then
+                shell.setCurrentDirectory(newPath)
+            else
+                callback("cd: " .. (err or "'" .. newPath .. "': Not a directory"))
+            end
+            process.removeProcess("[COMMANDS] - cd")
+        end, true)
+    end)
+end
+
+commands.mkdir = function (shell, args, callback)
+    process.addProcess("[COMMANDS] - mkdir", function()
+        local dirName = args[1]
+        if not dirName then
+            callback("mkdir: missing operand")
+            process.removeProcess("[COMMANDS] - mkdir")
+            return
+        end
+        
+        local currentDir = shell.getCurrentDirectory()
+        local newDirPath = resolvePath(currentDir, dirName)
+        
+        fs:mkDir(newDirPath, function(success, err)
+            if success then
+                callback("Directory '" .. newDirPath .. "' created.")
+            else
+                callback("mkdir: cannot create directory '".. newDirPath .."': " .. (err or "Operation failed"))
+            end
+            process.removeProcess("[COMMANDS] - mkdir")
+        end, true)
+    end)
+end
+
+commands.rmdir = function (shell, args, callback)
+    process.addProcess("[COMMANDS] - rmdir", function()
+        local dirName = args[1]
+        if not dirName then
+            callback("rmdir: missing operand")
+            process.removeProcess("[COMMANDS] - rmdir")
+            return
+        end
+
+        local currentDir = shell.getCurrentDirectory()
+        local dirToRemovePath = resolvePath(currentDir, dirName)
+
+        if dirToRemovePath == "/" then
+            callback("rmdir: cannot remove root directory")
+            process.removeProcess("[COMMANDS] - rmdir")
+            return
+        end
+
+        fs:rmDir(dirToRemovePath, function(success, err)
+            if success then
+                callback("Directory '" .. dirToRemovePath .. "' removed.")
+            else
+                callback("rmdir: failed to remove '" .. dirToRemovePath .. "': " .. (err or "Operation failed"))
+            end
+            process.removeProcess("[COMMANDS] - rmdir")
+        end, true)
+    end)
+end
+
+
 commands.processes = function (shell, args, callback)
     process.addProcess("[COMMANDS] - processes", function ()
-        LDY{shell = shell, args = args, callback = callback}
         if args[1] == "list" then
             process.list(function (list)
-                if shell.addLineToConsole then shell.addLineToConsole("======= Processes =======") end
-                for index, value in ipairs(list) do
+                shell.addLineToConsole("======= Processes =======")
+                for _, value in ipairs(list) do
                     if value.name ~= "[COMMANDS] - processes" then
-                        if shell.addLineToConsole then shell.addLineToConsole("P: "..value.id.." name: "..value.name.." status: "..value.status) end
+                        shell.addLineToConsole("P: "..value.id.." name: "..value.name.." status: "..value.status)
                     end
                 end
-                if shell.addLineToConsole then shell.addLineToConsole("======= End =======") end
+                shell.addLineToConsole("======= End =======")
                 process.removeProcess("[COMMANDS] - processes")
             end)
         elseif args[1] == "remove" then
             local name = args[2]
             process.removeProcess(name, function (success, error)
                 if success then
-                    if shell.addLineToConsole then shell.addLineToConsole("Processes "..name.." success delete.") end
+                    shell.addLineToConsole("Process "..name.." successfully deleted.")
                 else
-                    if shell.addLineToConsole then shell.addLineToConsole("Error processes "..name.." delete: "..error) end
+                    shell.addLineToConsole("Error deleting process "..name..": "..error)
                 end
             end)
-        end
-    end, function (success, error)
-        if not success then
-            callback("Error start command [processes]:" .. error)
+        else
+            callback("Usage: processes [list|remove <name>]")
+            process.removeProcess("[COMMANDS] - processes")
         end
     end)
 end
 
 commands.time = function (shell, args, callback)
     process.addProcess("[COMMANDS] - time", function ()
-        LDY{shell = shell, args = args, callback = callback}
         callback("OS time: "..os.time())
         process.removeProcess("[COMMANDS] - time")
-    end, function (success, error)
-        if not success then
-            callback("Error start command [time]:" .. error)
-        end
     end)
 end
 
 commands.clear = function (shell, args, callback)
     process.addProcess("[COMMANDS] - clear", function ()
-        LDY{shell = shell, args = args, callback = callback}
-        if Y().shell.clear then
-           Y().shell.clear()
-        else
-           Y().callback("[ERROR] Shell does not support clearing the console.")
-        end
+        shell.clear()
         process.removeProcess("[COMMANDS] - clear")
-    end, function (success, error)
-        if not success then
-            callback("Error start command [clear]:" .. error)
-        end
     end)
 end
 
 commands.ver = function (shell, args, callback)
     process.addProcess("[COMMANDS] - ver", function ()
-        LDY{shell = shell, args = args, callback = callback}
-        Y().callback("Virtual Shell v" .. tostring(Y().shell.version))
+        -- The shell version is in the API
+        callback("Virtual Shell v" .. tostring(shell.version))
         process.removeProcess("[COMMANDS] - ver")
-    end, function (success, error)
-        if not success then
-            callback("Error start command [ver]:" .. error)
-        end
     end)
 end
 
 commands.reboot = function (shell, args, callback)
     process.addProcess("[COMMANDS] - reboot", function ()
-        LDY{shell = shell, args = args, callback = callback}
-
-        if shell.addLineToConsole then shell.addLineToConsole("[COMMANDS] Rebooting...") end
+        callback("[SYSTEM] Rebooting...")
 
         process.list(function (list)
-            if shell.addLineToConsole then shell.addLineToConsole("[COMMANDS] Found " .. #list .. " processes to remove.") end
+            callback("[SYSTEM] Found " .. #list .. " processes to remove.")
 
             local function removeNextProcess(index)
                 if index > #list then
-                    if shell.addLineToConsole then shell.addLineToConsole("[COMMANDS] All processes removed.") end
+                    callback("[SYSTEM] All processes removed.")
 
                     LDA(oc.devices.RAM)
-                    if shell.addLineToConsole then shell.addLineToConsole("[COMMANDS] Clear ram storage: "..#A()._memory) end
+                    callback("[SYSTEM] Clearing RAM storage: " .. #A()._memory)
                     free(0, #A()._memory)
                     SLEEP(1)
 
@@ -119,23 +231,20 @@ commands.reboot = function (shell, args, callback)
                     return
                 end
                 
-                if shell.addLineToConsole then shell.addLineToConsole("[COMMANDS] Removing process: " .. processToRemove.name) end
+                callback("[SYSTEM] Removing process: " .. processToRemove.name)
 
                 process.removeProcess(processToRemove.name, function (success, err)
                     if success then
-                        if shell.addLineToConsole then shell.addLineToConsole("[COMMANDS] -> Success remove: "..processToRemove.name) end
+                        callback("[SYSTEM] -> Success remove: "..processToRemove.name)
                     else
-                        if shell.addLineToConsole then shell.addLineToConsole("[COMMANDS] -> Failed to remove: "..processToRemove.name..": "..tostring(err)) end
+                        callback("[SYSTEM] -> Failed to remove: "..processToRemove.name..": "..tostring(err))
                     end
                     SLEEP(0.1)
-
                     removeNextProcess(index + 1)
                 end)
             end
-
             removeNextProcess(1)
         end)
-
     end, function (success, error)
         if not success then
             callback("[COMMANDS] Error starting reboot process: "..error)

@@ -1,7 +1,8 @@
+-- shell.lua
 local commands = require("OC.Tinu.core.commands")
 
 local shell = {
-    version = 1.2,
+    version = 1.3,
 }
 
 shell.run = function (process)
@@ -15,7 +16,13 @@ shell.run = function (process)
         LDA(read(0))
         LDX(read(5))
         LDY(read(1))
-        commands.init({oc = Y(), process = process})
+        
+        local fs = read(4)
+        if not fs then
+            error("FileSystem not found at address 4")
+        end
+
+        commands.init({oc = Y(), process = process, fs = fs})
 
         ----------------------------------------------------------------------
         -- Memory Allocation & Constants
@@ -46,6 +53,9 @@ shell.run = function (process)
 
         local inputBufferAddr = alloc()
         write(inputBufferAddr, "")
+
+        local currentDirectoryAddr = alloc()
+        write(currentDirectoryAddr, "/")
 
         local usableHeight = read(monitorHeightAddr) - 5 - FONT_HEIGHT - 5
         local CONSOLE_MAX_LINES = math.floor(usableHeight / FONT_HEIGHT)
@@ -89,7 +99,9 @@ shell.run = function (process)
         write(shell_api, {
             version = shell.version,
             clear = clearConsole,
-            addLineToConsole = addLineToConsole
+            addLineToConsole = addLineToConsole,
+            getCurrentDirectory = function() return read(currentDirectoryAddr) end,
+            setCurrentDirectory = function(path) write(currentDirectoryAddr, path) end
         })
 
         ----------------------------------------------------------------------
@@ -103,7 +115,7 @@ shell.run = function (process)
                     write(inputBufferAddr, string.sub(currentInput, 1, -2))
                 end
             elseif e.key == "return" then
-                addLineToConsole("> " .. currentInput)
+                addLineToConsole(read(currentDirectoryAddr) .. "> " .. currentInput)
                 
                 if #currentInput > 0 then
                     local parts = alloc()
@@ -136,7 +148,7 @@ shell.run = function (process)
                 if #currentInput < 80 then
                     write(inputBufferAddr, currentInput .. " ")
                 end
-            elseif e.key and #e.key > 0 then
+            elseif e.key and #e.key == 1 then
                 if #currentInput < 80 then
                     write(inputBufferAddr, currentInput .. e.key)
                 end
@@ -148,11 +160,11 @@ shell.run = function (process)
         ----------------------------------------------------------------------
         addLineToConsole("Virtual Shell v" .. shell.version .. ". Type 'help' for commands.")
 
-        local speed = 0.05 -- 20 фпс
+        local speed = 0.05 -- 20 fps
         if Y().devices.model == "Zero1" then
-            speed = 1 -- 1 фпс
+            speed = 1 -- 1 fps
         elseif Y().devices.model == "Ore" or Y().devices.model == "Zero2" or Y().devices.model == "Zero5000" then
-            speed = 0.1 -- 10 фпс
+            speed = 0.1 -- 10 fps
         end
         coroutine.yield()
         while TRUE do
@@ -168,7 +180,8 @@ shell.run = function (process)
                 end
             end
 
-            local prompt = "> "
+            local currentDir = read(currentDirectoryAddr)
+            local prompt = currentDir .. "> "
             local currentInput = read(inputBufferAddr)
             local promptY = 5 + count * FONT_HEIGHT
             DTX(5, promptY, prompt .. currentInput, read(promptColorAddr), FONT_SCALE)

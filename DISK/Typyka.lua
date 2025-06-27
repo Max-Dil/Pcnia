@@ -200,7 +200,7 @@ function Typyka:write(address, data, callback)
     end
 
     local oldDataSize = self.storage[address] and (#self.storage[address]) or 0
-    local newDataSize = #data
+    local newDataSize = data == nil and 0 or #data
     local sizeDifference = newDataSize - oldDataSize
 
     if (self.usedSpace + sizeDifference)/1024/1024 > self.effectiveCapacity then
