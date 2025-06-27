@@ -23,6 +23,7 @@ shell.run = function (process)
         end
 
         commands.init({oc = Y(), process = process, fs = fs})
+        write(8, commands)
 
         ----------------------------------------------------------------------
         -- Memory Allocation & Constants
@@ -44,7 +45,7 @@ shell.run = function (process)
         write(monitorHeightAddr, Y().devices.MONITOR.resolution.height)
 
         local FONT_SCALE = 1
-        local FONT_HEIGHT = 9 * FONT_SCALE
+        local FONT_HEIGHT = 7 * FONT_SCALE
         local FONT_WIDTH = 6 * FONT_SCALE
         local textColorAddr = alloc()
         write(textColorAddr, {0.9 * 255, 0.9 * 255, 0.9 * 255})
@@ -58,7 +59,7 @@ shell.run = function (process)
         write(currentDirectoryAddr, "/")
 
         local usableHeight = read(monitorHeightAddr) - 5 - FONT_HEIGHT - 5
-        local CONSOLE_MAX_LINES = math.floor(usableHeight / FONT_HEIGHT)
+        local CONSOLE_MAX_LINES = math.floor(usableHeight / (8 * FONT_SCALE))
         if CONSOLE_MAX_LINES < 10 then CONSOLE_MAX_LINES = 10 end
         local consoleBufferAddr = alloc(CONSOLE_MAX_LINES)
         local consoleStartAddr = alloc()
@@ -99,7 +100,6 @@ shell.run = function (process)
         write(shell_api, {
             version = shell.version,
             clear = clearConsole,
-            addLineToConsole = addLineToConsole,
             getCurrentDirectory = function() return read(currentDirectoryAddr) end,
             setCurrentDirectory = function(path) write(currentDirectoryAddr, path) end
         })
@@ -160,31 +160,33 @@ shell.run = function (process)
         ----------------------------------------------------------------------
         addLineToConsole("Virtual Shell v" .. shell.version .. ". Type 'help' for commands.")
 
-        local speed = 0.05 -- 20 fps
+        local speed = 0.035 -- +-30 fps
         if Y().devices.model == "Zero1" then
-            speed = 1 -- 1 fps
+            speed = 0.5 -- 2 fps
         elseif Y().devices.model == "Ore" or Y().devices.model == "Zero2" or Y().devices.model == "Zero5000" then
-            speed = 0.1 -- 10 fps
+            speed = 0.05 -- 20 fps
         end
         coroutine.yield()
         while TRUE do
             SLEEP(speed)
             Y().devices.GPU:clear()
+
+            local fullRenderText = ""
             local start = read(consoleStartAddr)
             local count = read(consoleCountAddr)
             for i = 0, count - 1 do
                 local memoryIndex = (start + i) % CONSOLE_MAX_LINES
                 local lineText = read(consoleBufferAddr + memoryIndex)
                 if lineText then
-                    DTX(5, 5 + i * FONT_HEIGHT, lineText, read(textColorAddr), FONT_SCALE)
+                    fullRenderText = fullRenderText .. lineText .. "\n"
                 end
             end
-
             local currentDir = read(currentDirectoryAddr)
             local prompt = currentDir .. "> "
             local currentInput = read(inputBufferAddr)
-            local promptY = 5 + count * FONT_HEIGHT
-            DTX(5, promptY, prompt .. currentInput, read(promptColorAddr), FONT_SCALE)
+			fullRenderText = fullRenderText .. prompt .. currentInput
+
+			DTX(5, 5, fullRenderText, read(textColorAddr), FONT_SCALE)
 
             if (love.timer.getTime() - read(cursorBlinkTimeAddr)) > 0.5 then
                 write(cursorBlinkTimeAddr, love.timer.getTime())
@@ -193,7 +195,11 @@ shell.run = function (process)
 
             if read(isCursorVisibleAddr) then
                 local cursorX = 5 + (#(prompt .. currentInput) * FONT_WIDTH)
-                DRE(cursorX, promptY, FONT_WIDTH, FONT_HEIGHT, read(textColorAddr))
+                local cursorY = 5 + (read(consoleCountAddr) * (8 * FONT_SCALE))
+                
+                if cursorY + FONT_HEIGHT <= read(monitorHeightAddr) then
+                    DRE(cursorX, cursorY, FONT_WIDTH, FONT_HEIGHT, read(textColorAddr))
+                end
             end
             coroutine.yield()
         end

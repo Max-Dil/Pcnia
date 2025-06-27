@@ -38,11 +38,192 @@ commands.init = function (config)
     fs = config.fs
 end
 
+commands.load = function (shell, args, callback)
+	process.addProcess("[COMMANDS] - load", function()
+		local app = read(9)
+		if not app then
+			callback("load: Application module not found.")
+			process.removeProcess("[COMMANDS] - load")
+			return
+		end
+
+		local path = args[1]
+		if not path then
+			callback("load: missing file operand. Usage: load <path>")
+			process.removeProcess("[COMMANDS] - load")
+			return
+		end
+		
+		local fullPath = resolvePath(shell.getCurrentDirectory(), path)
+		
+		app.load(fullPath, function(success, message)
+			callback(message)
+			process.removeProcess("[COMMANDS] - load")
+		end)
+	end)
+end
+
+commands.run = function (shell, args, callback)
+	process.addProcess("[COMMANDS] - run", function()
+		local app = read(9)
+		if not app then
+			callback("run: Application module not found.")
+			process.removeProcess("[COMMANDS] - run")
+			return
+		end
+
+		local path = args[1]
+		if not path then
+			callback("run: missing file operand. Usage: run <path>")
+			process.removeProcess("[COMMANDS] - run")
+			return
+		end
+		
+		local fullPath = resolvePath(shell.getCurrentDirectory(), path)
+
+		app.run(fullPath, function(success, message)
+			if message then
+				callback(message)
+			end
+			process.removeProcess("[COMMANDS] - run")
+		end)
+	end)
+end
+
 commands.help = function (shell, args, callback)
-    process.addProcess("[COMMANDS] - help", function ()
-        callback("Commands: help, clear, ver, reboot, time, processes, ls, cd, mkdir, rmdir")
-        process.removeProcess("[COMMANDS] - help")
-    end)
+	process.addProcess("[COMMANDS] - help", function ()
+		callback("Commands: help, clear, ver")
+		callback("OS: reboot, time, processes")
+		callback("Folders: ls, cd, mkdir, rmdir")
+		callback("Files: touch, rm, cp, mv")
+		callback("Apps: load, run")
+		process.removeProcess("[COMMANDS] - help")
+	end)
+end
+
+commands.touch = function (shell, args, callback)
+	process.addProcess("[COMMANDS] - touch", function()
+		local fileName = args[1]
+		if not fileName then
+			callback("touch: missing file operand")
+			process.removeProcess("[COMMANDS] - touch")
+			return
+		end
+
+		local filePath = resolvePath(shell.getCurrentDirectory(), fileName)
+		local file = fs:open(filePath, "w", true)
+
+		file:write("", function(success, err)
+			if success then
+				callback("File '" .. filePath .. "' created.")
+			else
+				callback("touch: cannot create file '" .. filePath .. "': " .. (err or "Operation failed"))
+			end
+			process.removeProcess("[COMMANDS] - touch")
+		end)
+	end)
+end
+
+commands.rm = function (shell, args, callback)
+	process.addProcess("[COMMANDS] - rm", function()
+		local fileName = args[1]
+		if not fileName then
+			callback("rm: missing operand")
+			process.removeProcess("[COMMANDS] - rm")
+			return
+		end
+
+		local filePath = resolvePath(shell.getCurrentDirectory(), fileName)
+		local file = fs:open(filePath, "w", true) -- режим не важен для удаления
+
+		file:remove(function(success, err)
+			if success then
+				callback("File '" .. filePath .. "' removed.")
+			else
+				callback("rm: cannot remove file '" .. filePath .. "': " .. (err or "File not found or permission denied"))
+			end
+			process.removeProcess("[COMMANDS] - rm")
+		end)
+	end)
+end
+
+commands.cp = function (shell, args, callback)
+	process.addProcess("[COMMANDS] - cp", function()
+		local sourceName = args[1]
+		local destName = args[2]
+
+		if not sourceName or not destName then
+			callback("cp: missing file operand. Usage: cp <source> <destination>")
+			process.removeProcess("[COMMANDS] - cp")
+			return
+		end
+
+		local sourcePath = resolvePath(shell.getCurrentDirectory(), sourceName)
+		local destPath = resolvePath(shell.getCurrentDirectory(), destName)
+		
+		local sourceFile = fs:open(sourcePath, "r", true)
+		sourceFile:read(function(content, readErr)
+			if readErr then
+				callback("cp: cannot read source file '"..sourcePath.."': "..readErr)
+				process.removeProcess("[COMMANDS] - cp")
+				return
+			end
+			
+			local destFile = fs:open(destPath, "w", true)
+			destFile:write(content, function(writeSuccess, writeErr)
+				if writeSuccess then
+					callback("File copied from '"..sourcePath.."' to '"..destPath.."'")
+				else
+					callback("cp: cannot write to destination file '"..destPath.."': "..writeErr)
+				end
+				process.removeProcess("[COMMANDS] - cp")
+			end)
+		end)
+	end)
+end
+
+commands.mv = function (shell, args, callback)
+	process.addProcess("[COMMANDS] - mv", function()
+		local sourceName = args[1]
+		local destName = args[2]
+
+		if not sourceName or not destName then
+			callback("mv: missing file operand. Usage: mv <source> <destination>")
+			process.removeProcess("[COMMANDS] - mv")
+			return
+		end
+
+		local sourcePath = resolvePath(shell.getCurrentDirectory(), sourceName)
+		local destPath = resolvePath(shell.getCurrentDirectory(), destName)
+
+		local sourceFile = fs:open(sourcePath, "r", true)
+		sourceFile:read(function(content, readErr)
+			if readErr then
+				callback("mv: cannot read source file '"..sourcePath.."': "..readErr)
+				process.removeProcess("[COMMANDS] - mv")
+				return
+			end
+			
+			local destFile = fs:open(destPath, "w", true)
+			destFile:write(content, function(writeSuccess, writeErr)
+				if not writeSuccess then
+					callback("mv: cannot write to destination file '"..destPath.."': "..writeErr)
+					process.removeProcess("[COMMANDS] - mv")
+					return
+				end
+
+				local originalFile = fs:open(sourcePath, "w", true)
+				originalFile:remove(function(removeSuccess, removeErr)
+					if removeSuccess then
+						callback("File moved from '"..sourcePath.."' to '"..destPath.."'")
+					else
+						callback("mv: failed to remove original file '"..sourcePath.."' after copying: "..removeErr)
+					end
+					process.removeProcess("[COMMANDS] - mv")
+				end)
+			end)
+		end)
+	end)
 end
 
 commands.ls = function (shell, args, callback)
@@ -156,22 +337,22 @@ commands.processes = function (shell, args, callback)
     process.addProcess("[COMMANDS] - processes", function ()
         if args[1] == "list" then
             process.list(function (list)
-                shell.addLineToConsole("======= Processes =======")
+                callback("======= Processes =======")
                 for _, value in ipairs(list) do
                     if value.name ~= "[COMMANDS] - processes" then
-                        shell.addLineToConsole("P: "..value.id.." name: "..value.name.." status: "..value.status)
+                        callback("P: "..value.id.." name: "..value.name.." status: "..value.status)
                     end
                 end
-                shell.addLineToConsole("======= End =======")
+                callback("======= End =======")
                 process.removeProcess("[COMMANDS] - processes")
             end)
         elseif args[1] == "remove" then
             local name = args[2]
             process.removeProcess(name, function (success, error)
                 if success then
-                    shell.addLineToConsole("Process "..name.." successfully deleted.")
+                    callback("Process "..name.." successfully deleted.")
                 else
-                    shell.addLineToConsole("Error deleting process "..name..": "..error)
+                    callback("Error deleting process "..name..": "..error)
                 end
             end)
         else
@@ -239,7 +420,7 @@ commands.reboot = function (shell, args, callback)
                     else
                         callback("[SYSTEM] -> Failed to remove: "..processToRemove.name..": "..tostring(err))
                     end
-                    SLEEP(0.1)
+                    coroutine.yield()
                     removeNextProcess(index + 1)
                 end)
             end

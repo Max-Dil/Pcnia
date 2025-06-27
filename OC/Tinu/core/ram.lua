@@ -11,7 +11,7 @@ function m.init(OC, listener)
         end
 
         function m.TEMP()
-            LDX{i = 8, address = NIL, find = NIL} -- start 8 to Tinu.lua
+            LDX{i = 11, address = NIL, find = NIL} -- start 8 to Tinu.lua
             while not X().address do
                 X().find = A().__read(X().i)
                 if not X().find then

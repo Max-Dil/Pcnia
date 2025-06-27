@@ -9,11 +9,11 @@ evs.init = function (OC, process)
     OC.evs = evs
 
     process.addProcess("evs.lua", function ()
-        local speed = 0.05 -- 20 фпс
+        local speed = 0.035 -- +-30 fps
         if OC.devices.model == "Zero1" then
-            speed = 1 -- 1 фпс
+            speed = 0.5 -- 2 fps
         elseif OC.devices.model == "Ore" or OC.devices.model == "Zero2" or OC.devices.model == "Zero5000" then
-            speed = 0.1 -- 10 фпс
+            speed = 0.05 -- 20 fps
         end
         while true do
             SLEEP(speed)

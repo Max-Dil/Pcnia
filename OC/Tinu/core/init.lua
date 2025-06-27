@@ -48,59 +48,65 @@ OC.init = function(config)
             X().init(OC, function ()
                 write(3, X())
                 LDY(require("OC.Tinu.core.fileSystem"))
+                write(4, Y())
 
                 write(5, require("OC.Tinu.core.evs"))
                 read(5).init(OC, X())
 
-                write(4, Y())
-                Y():init(function(success, err)
-                        if not success then
-                            print("Init failed:", err)
-                            return
-                        end
-                        config.disk:read("is_load", function (is_load)
-                            if is_load ~= "true" then
-                                config.disk:write("is_load", "true", function(success)
-                                    if success then
-                                        config.disk:saveToFile("TinuOC")
-                                        OC.start(X())
-                                    end
-                                end)
-                            else
-                                OC.start(X())
-                                -- X().addProcess("test", function ()
-                                --     print(99)
-                                -- end, function (suc, co)
-                                --     print(suc, co)
-                                -- end)
-                            
-                                -- local file = Y():open("test.txt", "w")
-                                -- file:write("test", function (success, errors)
-                                --     if not success then
-                                --         print(errors)
-                                --         return nil
-                                --     end
-                                --     file.close()
-                                --     local file = Y():open("test.txt", "r")
-                                --     file:read(function (value, erorr)
-                                --         print(value, erorr)
-                            
-                            
-                                --         file:remove(function (succes, erorr)
-                                --             print(succes, erorr)
-                                --             file:read(function (value, erorr)
-                                --             print(value, erorr)
-                                --             end)
-                                --         end)
-                                --     end)
-                                -- end)
-                            
-                                -- read(5).mk_event("keypressed", function (e)
-                                --     print(e.key)
-                                -- end)
+                LDA(require("OC.Tinu.core.app"))
+                A().init(X(), function (success, erorr)
+                    if not success then
+                        erorr(erorr)
+                    end
+                    Y():init(function(success, err)
+                            if not success then
+                                print("Init failed:", err)
+                                return
                             end
-                        end)
-                end, config.disk, OC)
+                            config.disk:read("is_load", function (is_load)
+                                if is_load ~= "true" then
+                                    config.disk:write("is_load", "true", function(success)
+                                        if success then
+                                            config.disk:saveToFile("TinuOC")
+                                            OC.start(X())
+                                        end
+                                    end)
+                                else
+                                    OC.start(X())
+                                    -- X().addProcess("test", function ()
+                                    --     print(99)
+                                    -- end, function (suc, co)
+                                    --     print(suc, co)
+                                    -- end)
+                                
+                                    -- local file = Y():open("test.txt", "w")
+                                    -- file:write("test", function (success, errors)
+                                    --     if not success then
+                                    --         print(errors)
+                                    --         return nil
+                                    --     end
+                                    --     file.close()
+                                    --     local file = Y():open("test.txt", "r")
+                                    --     file:read(function (value, erorr)
+                                    --         print(value, erorr)
+                                
+                                
+                                    --         file:remove(function (succes, erorr)
+                                    --             print(succes, erorr)
+                                    --             file:read(function (value, erorr)
+                                    --             print(value, erorr)
+                                    --             end)
+                                    --         end)
+                                    --     end)
+                                    -- end)
+                                
+                                    -- read(5).mk_event("keypressed", function (e)
+                                    --     print(e.key)
+                                    -- end)
+                                end
+                            end)
+                    end, config.disk, OC)
+                end)
             end)
         end)
     end)

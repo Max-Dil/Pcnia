@@ -10,10 +10,9 @@ local MONITOR = require("MONITOR.Huga")
 local RAM = require("RAM.Unsa 2x10m")
 local DISK = require("DISK.Typyka")
 
-local OC = require("OC.Tinu")
+local OC = require("OC.Tinu.core.Tinu")
 
 -- love.window.setMode(1200, 900, {vsync = 0})
-love.window.setMode(1200, 900)
 function love.load()
     OC.init({
         cpu = CPU,
