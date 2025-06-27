@@ -10,6 +10,10 @@ version - версия
 title - описание
 code - основной код
 modules - используемые модули
+
+API:
+ADD_COMMAND(name, listener)
+REMOVE_COMMAND(name)
 ]]
 
 app.init = function (proc, listener)
@@ -35,7 +39,7 @@ app.run = function (path, listener)
     process.addProcess("[APP] Run app to "..path, function ()
         LDA(read(10))
         local isSuccess = true
-        if not A()[path] then
+        if not A()[path] or not A()[path].data then
             local load = true
             app.load(path, function (success, error)
                 if not success then
@@ -47,15 +51,67 @@ app.run = function (path, listener)
             while load do coroutine.yield() end
         end
         if isSuccess then
-            -- запуск
             LDA(read(10))
-            local success, error = pcall(json.encode, A()[path])
-            if not success or A()[path] == "" then
-                listener(NIL, A()[path] == "" and "Error: broken package" or error)
+            local success, error = pcall(json.decode, A()[path].data)
+            if not success or A()[path].data == "" then
+                listener(NIL, A()[path].data == "" and "Error: broken package" or error)
                 process.removeProcess("[APP] Run app to "..path)
                 return
             end
-            listener(TRUE)
+
+            LDX(error)
+            -- Запуск
+            local f, error = loadstring(
+[[
+local __APP__NAME__ = "]]..X().name..[["
+local function ALLOC(count)
+    local addr = read(0).TEMP()
+    write(addr, 0)
+    if count then
+        for i = 1, count, 1 do
+            write(addr+i, 0)
+        end
+    end
+    return addr
+end
+local function ADD_COMMAND(n, l)
+    local name, listener = ALLOC(), ALLOC()
+    write(name, n)
+    write(listener, l)
+
+    if not read(8).app[__APP__NAME__] then
+        read(8).app[__APP__NAME__] = {}
+    end
+    if read(8).app[__APP__NAME__][read(name)] then
+        return
+    end
+    read(8).app[__APP__NAME__][read(name)] = read(listener)
+    free(name)
+    free(listener)
+end
+]]..X().code
+            , path)
+            local isSucces = true
+            if f then
+                process.addProcess(path, f, function (success, error)
+                    if not success then
+                        listener(NIL, error)
+                        process.removeProcess(path)
+                        isSucces = false
+                    end
+                    return
+                end)
+            else
+                listener(NIL, error)
+                process.removeProcess("[APP] Run app to "..path)
+                return
+            end
+            if isSucces then
+                local appMemory = read(0).TEMP()
+                write(appMemory, error)
+                A()[path].memory = appMemory
+                listener(TRUE)
+            end
         end
         process.removeProcess("[APP] Run app to "..path)
     end, function (success, error)
@@ -80,14 +136,16 @@ app.load = function (path, listener)
                 return
             end
 
-            local success, error = pcall(json.encode, data)
+            local success, error = pcall(json.decode, data)
             if not success or data == "" then
                 listener(NIL, data == "" and "Error: broken package" or error)
                 return
             end
 
             LDA(read(10))
-            A()[path] = data
+            A()[path] = {
+                data = data,
+            }
             write(10, A())
             listener(TRUE)
         end)

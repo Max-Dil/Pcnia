@@ -1,5 +1,7 @@
 -- commands.lua
-local commands = {}
+local commands = {
+    app = {}
+}
 local oc, process, fs
 
 local function resolvePath(currentDir, targetPath)
@@ -113,6 +115,7 @@ commands.touch = function (shell, args, callback)
 		local filePath = resolvePath(shell.getCurrentDirectory(), fileName)
 		local file = fs:open(filePath, "w", true)
 
+        print(filePath)
 		file:write("", function(success, err)
 			if success then
 				callback("File '" .. filePath .. "' created.")

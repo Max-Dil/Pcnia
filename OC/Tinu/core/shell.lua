@@ -137,7 +137,16 @@ shell.run = function (process)
                     if commands[read(cmd)] and read(cmd) ~= "init" then
                         commands[read(cmd)](read(shell_api), read(args), addLineToConsole)
                     else
-                        addLineToConsole("Unknown command: '" .. read(cmd) .. "'")
+                        local appName, appCmd = read(cmd), read(args)[1]
+                        local newArgs = {}
+                        for i = 2, #read(args), 1 do
+                            newArgs[i-1] = read(args)[i]
+                        end
+                        if appName and appCmd and read(8).app[appName] and read(8).app[appName][appCmd] then
+                            read(8).app[appName][appCmd](read(shell_api), newArgs, addLineToConsole)
+                        else
+                            addLineToConsole("Unknown command: '" .. read(cmd) .. "'")
+                        end
                     end
                     free(args)
                     free(cmd)
@@ -165,6 +174,9 @@ shell.run = function (process)
             speed = 0.5 -- 2 fps
         elseif Y().devices.model == "Ore" or Y().devices.model == "Zero2" or Y().devices.model == "Zero5000" then
             speed = 0.05 -- 20 fps
+        end
+        if Y().devices.model == "Zero5000 PRO MAX" then
+            speed = 0.01 -- 90fps
         end
         coroutine.yield()
         while TRUE do

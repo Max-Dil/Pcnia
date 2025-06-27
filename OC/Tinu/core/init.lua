@@ -99,6 +99,28 @@ OC.init = function(config)
                                     --         end)
                                     --     end)
                                     -- end)
+
+                                    local file = Y():open("/test.app", "w", true)
+                                    file:write(json.encode({
+                                        name = "test",
+                                        version = "1.0",
+                                        title = "test",
+                                        code = [[
+                                            print("test")
+                                            ADD_COMMAND("hello", function(shell, args, callback)
+                                                callback(args[1] or "test hello <text>")
+                                            end)
+                                            ADD_COMMAND("help", function(shell, args, callback)
+                                                callback("Test app commands: hello")
+                                            end)
+                                        ]],
+                                        modules = {}
+                                    }), function (success, erorr)
+                                        if not success then
+                                            print(erorr)
+                                        end
+                                        file.close()
+                                    end)
                                 
                                     -- read(5).mk_event("keypressed", function (e)
                                     --     print(e.key)
