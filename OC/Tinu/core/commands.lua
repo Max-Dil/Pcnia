@@ -117,13 +117,132 @@ commands.run = function (shell, args, callback)
 	end)
 end
 
+commands.autoload = function (shell, args, callback)
+    process.addProcess("[COMMANDS] - autoload", function()
+        local app = read(9)
+        if not app then
+            callback("autoload: Application module not found.")
+            process.removeProcess("[COMMANDS] - autoload")
+            return
+        end
+
+        local action = args[1]
+        local path = args[2]
+        
+        if not action or (action ~= "add" and action ~= "remove" and action ~= "list") then
+            callback("Usage: autoload <add|remove|list> [path]")
+            process.removeProcess("[COMMANDS] - autoload")
+            return
+        end
+
+        local fs = read(4)
+        local autoloadPath = "/Tinu/autoload.json"
+        
+        if action == "list" then
+            fs:open(autoloadPath, "r", true):read(function(data)
+                if not data or data == "" then
+                    callback("No autoload applications configured")
+                    process.removeProcess("[COMMANDS] - autoload")
+                    return
+                end
+                
+                local success, autoloadList = pcall(json.decode, data)
+                if not success then
+                    callback("Error reading autoload list: "..tostring(autoloadList))
+                    process.removeProcess("[COMMANDS] - autoload")
+                    return
+                end
+                
+                callback("Autoload applications:")
+                for _, appPath in ipairs(autoloadList) do
+                    callback("  "..appPath)
+                end
+                process.removeProcess("[COMMANDS] - autoload")
+            end)
+        elseif action == "add" or action == "remove" then
+            if not path then
+                callback("autoload: missing path operand")
+                process.removeProcess("[COMMANDS] - autoload")
+                return
+            end
+            
+            local fullPath = resolvePath(shell.getCurrentDirectory(), path)
+
+            fs:open(fullPath, "r", true):read(function(data)
+                if not data then
+                    callback("autoload: file not found: "..fullPath)
+                    process.removeProcess("[COMMANDS] - autoload")
+                    return
+                end
+
+                fs:open(autoloadPath, "r", true):read(function(autoloadData)
+                    local autoloadList = {}
+                    if autoloadData and autoloadData ~= "" then
+                        local success, decoded = pcall(json.decode, autoloadData)
+                        if success then
+                            autoloadList = decoded
+                        end
+                    end
+                    
+                    if action == "add" then
+                        for _, appPath in ipairs(autoloadList) do
+                            if appPath == fullPath then
+                                callback("Application already in autoload list")
+                                process.removeProcess("[COMMANDS] - autoload")
+                                return
+                            end
+                        end
+
+                        app.load(fullPath, function(success, error, isText)
+                            if not success then
+                                callback(tostring(error))
+                                process.removeProcess("[COMMANDS] - autoload")
+                                return
+                            end
+
+                            table.insert(autoloadList, fullPath)
+                            
+                            fs:open(autoloadPath, "w", true):write(json.encode(autoloadList), function()
+                                callback("Application added to autoload: "..fullPath)
+                                read(1).devices.DISK:saveToFile("TinuOC")
+                                process.removeProcess("[COMMANDS] - autoload")
+                            end)
+                        end)
+                    else
+                        local found = false
+                        for i, appPath in ipairs(autoloadList) do
+                            if appPath == fullPath then
+                                table.remove(autoloadList, i)
+                                found = true
+                                break
+                            end
+                        end
+                        
+                        if not found then
+                            callback("Application not found in autoload list")
+                            process.removeProcess("[COMMANDS] - autoload")
+                            return
+                        end
+
+                        fs:open(autoloadPath, "w", true):write(json.encode(autoloadList), function()
+                            callback("Application removed from autoload: "..fullPath)
+                            read(1).devices.DISK:saveToFile("TinuOC")
+                            process.removeProcess("[COMMANDS] - autoload")
+                        end)
+                    end
+                end)
+            end)
+        end
+    end)
+end
+
 commands.help = function (shell, args, callback)
 	process.addProcess("[COMMANDS] - help", function ()
 		callback("Commands: help, clear, ver")
 		callback("OS: reboot, time, processes")
 		callback("Folders: ls, cd, mkdir, rmdir")
 		callback("Files: touch, rm, cp, mv")
-		callback("Apps: load, run, unload")
+		callback("Apps: load, run, unload, autoload")
 		process.removeProcess("[COMMANDS] - help")
 	end)
 end

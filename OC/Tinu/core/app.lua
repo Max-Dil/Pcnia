@@ -18,6 +18,7 @@ TERMINAL(command, args, listener)
 TERMINAL_ISVISIBLE(isVisible)
 ADD_EVENT(name, listener)
 REMOVE_EVENT(name, listener)
+CLOSE()
 ]]
 
 app.init = function (proc, listener)
@@ -99,11 +100,33 @@ app.run = function (path, listener)
 
             LDX(error)
 
-            -- Запуск
-            local f, error = loadstring(
+local code =
 [[
 local __APP__NAME__ = "]]..X().name..[["
-local __APP__MODULES__ = require("OC.Tinu.core.components.json").decode(']]..require("OC.Tinu.core.components.json").encode(X().modules)..[[')
+local __APP__MODULES__ = read(2).decode(']]..read(2).encode(X().modules)..[[')
+
+local EVENTS = {}
+
+local function CLOSE()
+    if read(8).app[__APP__NAME__] then
+        read(8).app[__APP__NAME__] = NIL
+    end
+    for key, value in pairs(EVENTS) do
+        for index, value2 in ipairs(EVENTS[key]) do
+            read(5).rm_event(key, value2)
+        end
+    end
+    read(7).isVisible = TRUE
+    read(3).removeProcess("]]..path..[[")
+    coroutine.yield()
+end
+
+read(5).mk_event("keypressed", function(e)
+    if e.key == "escape" then
+        CLOSE()
+    end
+end)
+
 local function ALLOC(count)
     local addr = read(0).TEMP()
     write(addr, 0)
@@ -156,7 +179,7 @@ local function TERMINAL_ISVISIBLE(isVis)
     local isVisible = ALLOC()
     write(isVisible, isVis)
 
-    read(11).isVisible = read(isVisible)
+    read(7).isVisible = read(isVisible)
 
     free(isVisible)
 end
@@ -165,6 +188,10 @@ local function ADD_EVENT(n, l)
     write(name, n)
     write(listener, l)
 
+    if not EVENTS[read(name)] then
+        EVENTS[read(name)] = {}
+    end
+    table.insert(EVENTS[read(name)], read(listener))
     read(5).mk_event(read(name), read(listener))
 
     free(name)
@@ -176,24 +203,29 @@ local function REMOVE_EVENT(n, l)
     write(name, n)
     write(listener, l)
 
+    if not EVENTS[read(name)] then
+        EVENTS[read(name)] = {}
+    end
+    for i = #EVENTS[read(name)], 1, -1 do
+        if EVENTS[read(name)][i] == read(listener) then
+            table.remove(EVENTS[read(name)], i)
+            break
+        end
+    end
     read(5).rm_event(read(name), read(listener))
 
     free(name)
     free(listener)
 end
 
+local function CLEAR(r, g ,b)
+    if not read(7).isVisible then
+        read(1).devices.GPU:clear(r, g ,b)
+    end
+end
+]]..require("OC.Tinu.core.packages")..[[
+
 local _G = {
-    print = print,
-    pcall = pcall,
-    coroutine = {
-        yield = coroutine.yield,
-    },
-    os = os,
-    table = table,
-    unpack = unpack,
-    ipairs = ipairs,
-    pairs = pairs,
- 
     ALLOC = ALLOC,
     ADD_COMMAND = ADD_COMMAND,
     REMOVE_COMMAND = REMOVE_COMMAND,
@@ -208,22 +240,23 @@ local _G = {
     X = X,
     A = A,
     Y = Y,
+
     READ = function(addr, size)
-        -- if addr <= 11 then
-        --     return 0
-        -- end
+        if addr <= 10 then
+            return 0
+        end
         return read(addr, size)
     end,
     WRITE= function(addr, value)
-        -- if addr <= 11 then
-        --     return 0
-        -- end
+        if addr <= 10 then
+            return 0
+        end
         return write(addr, value)
     end,
     FREE = function(addr, count)
-        -- if addr <= 11 then
-        --     return 0
-        -- end
+        if addr <= 10 then
+            return 0
+        end
         return free(addr, count)
     end,
     ADD = ADD, -- +
@@ -250,9 +283,19 @@ local _G = {
     SR = SR,
     SP = SP,
 }
+for _, module_name in ipairs(__APP__MODULES__) do
+    if packages[module_name] then
+        for k, v in pairs(packages[module_name]) do
+            _G[k] = v
+        end
+    end
+end
+
 setfenv(1, setmetatable({}, {__index =_G}))
 ]]..X().code
-            , path)
+            -- Запуск
+            print(code)
+            local f, error = loadstring(code, path)
             local isSucces = true
             if f then
                 process.addProcess(path, f, function (success, error)
@@ -341,55 +384,69 @@ app.load = function (path, listener)
             end
             LDX(error)
 
-            if X().modules and #X().modules > 0 then
-                local monitorWidth = read(1).devices.MONITOR.resolution.width
-                local charWidth = 7
-                local maxCharsPerLine = math.floor(monitorWidth / charWidth)
+            if read(1).__shell_autoloads_app_premission ~= true then
+                if X().modules and #X().modules > 0 then
+                    local monitorWidth = read(1).devices.MONITOR.resolution.width
+                    local charWidth = 7
+                    local maxCharsPerLine = math.floor(monitorWidth / charWidth)
+
+                    listener(NIL, "You allow access to these modules?", TRUE)
+                    listener(NIL, "Modules:", TRUE)
                 
-                listener(NIL, "You allow access to these modules?", TRUE)
-                listener(NIL, "Modules:", TRUE)
-            
-                local currentLine = ""
-                for i, module in ipairs(X().modules) do
-                    if #currentLine + #module + 2 > maxCharsPerLine then 
-                        listener(NIL, currentLine, TRUE)
-                        currentLine = module
-                    else
-                        if currentLine ~= "" then
-                            currentLine = currentLine .. ", " .. module
+                    local dangerousModules = {
+                        ["oc"] = "oc(dangerous!!!)",
+                        ["luajit"] = "luajit(dangerous)",
+                        ["processes"] = "processes(dangerous)",
+                        ["commands"] = "commands(dangerous)",
+                        ["app"] = "app(dangerous)",
+                    }
+                    local currentLine = ""
+                    for i, module in ipairs(X().modules) do
+                        local displayModule = module
+                        if dangerousModules[module] then
+                            displayModule = dangerousModules[module]
+                        end
+
+                        if #currentLine + #displayModule + 2 > maxCharsPerLine then
+                            listener(NIL, currentLine, TRUE)
+                            currentLine = displayModule
                         else
-                            currentLine = module
+                            if currentLine ~= "" then
+                                currentLine = currentLine .. ", " .. displayModule
+                            else
+                                currentLine = displayModule
+                            end
                         end
                     end
-                end
-            
-                if currentLine ~= "" then
-                    listener(NIL, currentLine, TRUE)
-                end
-                
-                listener(NIL, "Write [y/n]", TRUE)
-                
-                local waitResult = true
-                local isSuccess = true
-                readInput(listener, function(success, error)
-                    if success then
-                        waitResult = false
-                        isSuccess = true
-                    else
-                        listener(NIL, error)
-                        process.removeProcess("[APP] Load app to "..path)
-                        isSuccess = false
-                        waitResult = false
+
+                    if currentLine ~= "" then
+                        listener(NIL, currentLine, TRUE)
                     end
-                end)
-                
-                while waitResult do
-                    coroutine.yield()
-                    SLEEP(0.2)
-                end
-                
-                if not isSuccess then
-                    return
+
+                    listener(NIL, "Write [y/n]", TRUE)
+
+                    local waitResult = true
+                    local isSuccess = true
+                    readInput(listener, function(success, error)
+                        if success then
+                            waitResult = false
+                            isSuccess = true
+                        else
+                            listener(NIL, error)
+                            process.removeProcess("[APP] Load app to "..path)
+                            isSuccess = false
+                            waitResult = false
+                        end
+                    end)
+
+                    while waitResult do
+                        coroutine.yield()
+                        SLEEP(0.2)
+                    end
+
+                    if not isSuccess then
+                        return
+                    end
                 end
             end
 

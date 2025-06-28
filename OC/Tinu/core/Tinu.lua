@@ -6,7 +6,7 @@ return require("OC.Tinu.core.init")
 0 - ram system
 1 - OC
 
--- 2 - кеш файловый системы
+2 - json
 3 - processes system
 4 - file system
 5 - oc event system 
@@ -15,5 +15,4 @@ return require("OC.Tinu.core.init")
 8 - commands
 9 - app system module
 10 - app kesh
-11 - shell
 ]]

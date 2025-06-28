@@ -106,11 +106,10 @@ shell.run = function (process)
             setCurrentDirectory = function(path) write(currentDirectoryAddr, path) end
         })
 
-        write(11, shell)
-
         ----------------------------------------------------------------------
         -- Event Handling
         ----------------------------------------------------------------------
+        local start_events = function ()
         X().mk_event("keypressed", function (e)
             if shell.isVisible then
                 local currentInput = read(inputBufferAddr)
@@ -169,6 +168,7 @@ shell.run = function (process)
                 end
             end
         end)
+        end
 
         ----------------------------------------------------------------------
         -- Main Process Loop (Render Loop)
@@ -184,6 +184,60 @@ shell.run = function (process)
         -- if Y().devices.model == "Zero5000 PRO MAX" then
         --     speed = 0.01 -- 90fps
         -- end
+        coroutine.yield()
+
+        local function loadAutoloadApps(callback)
+            read(1).__shell_autoloads_app_premission = true
+            local fs = read(4)
+            local app = read(9)
+            local autoloadPath = "/Tinu/autoload.json"
+
+            fs:open(autoloadPath, "r", true):read(function(data)
+                if not data or data == "" then
+                    callback()
+                    return
+                end
+
+                local success, autoloadList = pcall(json.decode, data)
+                if not success then
+                    addLineToConsole("Error loading autoload list: "..tostring(autoloadList))
+                    callback()
+                    return
+                end
+
+                local loadedCount = 0
+                local totalToLoad = #autoloadList
+
+                if totalToLoad == 0 then
+                    callback()
+                    return
+                end
+
+                addLineToConsole("Loading autoload applications...")
+
+                local function checkDone()
+                    loadedCount = loadedCount + 1
+                    if loadedCount >= totalToLoad then
+                        callback()
+                    end
+                end
+
+                for _, appPath in ipairs(autoloadList) do
+                    app.run(appPath, function(success, error)
+                        if not success then
+                            addLineToConsole("Error autoloading "..appPath..": "..tostring(error))
+                        else
+                            addLineToConsole("Autoloaded: "..appPath)
+                        end
+                        checkDone()
+                    end)
+                end
+            end)
+        end
+
+        loadAutoloadApps(function()
+        read(1).__shell_autoloads_app_premission = false
+        start_events()
         coroutine.yield()
         while TRUE do
             SLEEP(speed)
@@ -223,6 +277,7 @@ shell.run = function (process)
             end
             coroutine.yield()
         end
+        end)
     end, function (success, error)
         if not success then
             print("[SHELL] Critical error running shell: "..tostring(error))

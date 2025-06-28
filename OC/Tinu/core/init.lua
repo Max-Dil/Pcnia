@@ -32,7 +32,7 @@ OC.init = function(config)
         config.disk:update(dt)
     end
 
-    -- config.disk:loadFromFile("TinuOC")
+    config.disk:loadFromFile("TinuOC")
     config.cpu:addThread(function ()
         LDA({255, 255, 255})
 
@@ -44,6 +44,7 @@ OC.init = function(config)
 
         A().init(OC, function () -- init ram system
             write(1, OC) -- oc
+            write(2, require("OC.Tinu.core.components.json")) -- json
             LDX(require("OC.Tinu.core.processes"))
             X().init(OC, function ()
                 write(3, X())
@@ -144,7 +145,7 @@ OC.init = function(config)
                                             TERMINAL_ISVISIBLE(false)
                                             while TRUE do
                                                 coroutine.yield()
-                                                READ(1).devices.GPU:clear()
+                                                CLEAR()
 
                                                 DTX(200, 150, "TEST", {255, 0, 0}, 1)
 
