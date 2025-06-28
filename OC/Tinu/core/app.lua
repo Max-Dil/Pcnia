@@ -118,6 +118,7 @@ local function CLOSE()
     end
     read(7).isVisible = TRUE
     read(3).removeProcess("]]..path..[[")
+    read(3).removeProcess("]].."[APP] Run app to "..path..[[")
     coroutine.yield()
 end
 

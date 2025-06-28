@@ -113,7 +113,7 @@ shell.run = function (process)
         X().mk_event("keypressed", function (e)
             if shell.isVisible then
                 local currentInput = read(inputBufferAddr)
-                
+
                 if e.key == "backspace" then
                     if #currentInput > 0 then
                         write(inputBufferAddr, string.sub(currentInput, 1, -2))
@@ -239,6 +239,7 @@ shell.run = function (process)
         read(1).__shell_autoloads_app_premission = false
         start_events()
         coroutine.yield()
+        end)
         while TRUE do
             SLEEP(speed)
             if shell.isVisible then
@@ -277,7 +278,6 @@ shell.run = function (process)
             end
             coroutine.yield()
         end
-        end)
     end, function (success, error)
         if not success then
             print("[SHELL] Critical error running shell: "..tostring(error))
