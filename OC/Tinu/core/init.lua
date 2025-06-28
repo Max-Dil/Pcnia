@@ -32,7 +32,7 @@ OC.init = function(config)
         config.disk:update(dt)
     end
 
-    config.disk:loadFromFile("TinuOC")
+    -- config.disk:loadFromFile("TinuOC")
     config.cpu:addThread(function ()
         LDA({255, 255, 255})
 
@@ -67,8 +67,20 @@ OC.init = function(config)
                                 if is_load ~= "true" then
                                     config.disk:write("is_load", "true", function(success)
                                         if success then
-                                            config.disk:saveToFile("TinuOC")
-                                            OC.start(X())
+                                            Y():mkDir("/Tinu", function (success, error)
+                                                if success then
+                                                    Y():mkDir("/user", function (success, error)
+                                                        if success then
+                                                            config.disk:saveToFile("TinuOC")
+                                                            OC.start(X())
+                                                        else
+                                                            print("Create /user "..error)
+                                                        end
+                                                    end)
+                                                else
+                                                    print("Create /Tinu" .. error)
+                                                end
+                                            end, true)
                                         end
                                     end)
                                 else
@@ -113,8 +125,38 @@ OC.init = function(config)
                                             ADD_COMMAND("help", function(shell, args, callback)
                                                 callback("Test app commands: hello")
                                             end)
+
+                                            ADD_COMMAND("hide", function(shell, args, callback)
+                                                callback("Hide terminal")
+                                                TERMINAL_ISVISIBLE(false)
+                                                read(1).devices.GPU:clear()
+                                            end)
+
+                                            TERMINAL("help", {}, function(text)
+                                                print(text)
+                                            end)
+
+                                            local s = {}
+                                            ADD_EVENT("keypressed", function(e)
+                                                table.insert(s, e.key)
+                                            end)
+
+                                            TERMINAL_ISVISIBLE(false)
+                                            while TRUE do
+                                                coroutine.yield()
+                                                READ(1).devices.GPU:clear()
+
+                                                DTX(200, 150, "TEST", {255, 0, 0}, 1)
+
+                                                local text = ""
+                                                for index, value in ipairs(s) do
+                                                    text = text .. value .. "\n"
+                                                end
+                                                DTX(5, 5, text, {0, 255, 0}, 1)
+                                                SLEEP(0.05)
+                                            end
                                         ]],
-                                        modules = {}
+                                        modules = {"lua5.1"}
                                     }), function (success, erorr)
                                         if not success then
                                             print(erorr)

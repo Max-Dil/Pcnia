@@ -15,4 +15,5 @@ return require("OC.Tinu.core.init")
 8 - commands
 9 - app system module
 10 - app kesh
+11 - shell
 ]]

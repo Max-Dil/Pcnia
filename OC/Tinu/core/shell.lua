@@ -3,10 +3,12 @@ local commands = require("OC.Tinu.core.commands")
 
 local shell = {
     version = 1.3,
+    isVisible = true
 }
 
 shell.run = function (process)
     process.addProcess("shell.lua", function ()
+
         --[[
             Initializes the core systems by loading pointers from memory.
             A -> RAM System Control (for memory allocation)
@@ -104,62 +106,66 @@ shell.run = function (process)
             setCurrentDirectory = function(path) write(currentDirectoryAddr, path) end
         })
 
+        write(11, shell)
+
         ----------------------------------------------------------------------
         -- Event Handling
         ----------------------------------------------------------------------
         X().mk_event("keypressed", function (e)
-            local currentInput = read(inputBufferAddr)
-
-            if e.key == "backspace" then
-                if #currentInput > 0 then
-                    write(inputBufferAddr, string.sub(currentInput, 1, -2))
-                end
-            elseif e.key == "return" then
-                addLineToConsole(read(currentDirectoryAddr) .. "> " .. currentInput)
+            if shell.isVisible then
+                local currentInput = read(inputBufferAddr)
                 
-                if #currentInput > 0 then
-                    local parts = alloc()
-                    write(parts, {})
-                    for part in string.gmatch(currentInput, "[^%s]+") do
-                        table.insert(read(parts), part)
+                if e.key == "backspace" then
+                    if #currentInput > 0 then
+                        write(inputBufferAddr, string.sub(currentInput, 1, -2))
                     end
-                    local cmd = alloc()
-                    write(cmd, read(parts)[1])
-                    local args = alloc()
-                    write(args, {})
-                    if #read(parts) > 1 then
-                        for i = 2, #read(parts) do
-                            table.insert(read(args), read(parts)[i])
+                elseif e.key == "return" then
+                    addLineToConsole(read(currentDirectoryAddr) .. "> " .. currentInput)
+                    
+                    if #currentInput > 0 then
+                        local parts = alloc()
+                        write(parts, {})
+                        for part in string.gmatch(currentInput, "[^%s]+") do
+                            table.insert(read(parts), part)
                         end
-                    end
-                    free(parts)
-
-                    if commands[read(cmd)] and read(cmd) ~= "init" then
-                        commands[read(cmd)](read(shell_api), read(args), addLineToConsole)
-                    else
-                        local appName, appCmd = read(cmd), read(args)[1]
-                        local newArgs = {}
-                        for i = 2, #read(args), 1 do
-                            newArgs[i-1] = read(args)[i]
+                        local cmd = alloc()
+                        write(cmd, read(parts)[1])
+                        local args = alloc()
+                        write(args, {})
+                        if #read(parts) > 1 then
+                            for i = 2, #read(parts) do
+                                table.insert(read(args), read(parts)[i])
+                            end
                         end
-                        if appName and appCmd and read(8).app[appName] and read(8).app[appName][appCmd] then
-                            read(8).app[appName][appCmd](read(shell_api), newArgs, addLineToConsole)
+                        free(parts)
+                    
+                        if commands[read(cmd)] and read(cmd) ~= "init" then
+                            commands[read(cmd)](read(shell_api), read(args), addLineToConsole)
                         else
-                            addLineToConsole("Unknown command: '" .. read(cmd) .. "'")
+                            local appName, appCmd = read(cmd), read(args)[1]
+                            local newArgs = {}
+                            for i = 2, #read(args), 1 do
+                                newArgs[i-1] = read(args)[i]
+                            end
+                            if appName and appCmd and read(8).app[appName] and read(8).app[appName][appCmd] then
+                                read(8).app[appName][appCmd](read(shell_api), newArgs, addLineToConsole)
+                            else
+                                addLineToConsole("Unknown command: '" .. read(cmd) .. "'")
+                            end
                         end
+                        free(args)
+                        free(cmd)
                     end
-                    free(args)
-                    free(cmd)
-                end
-
-                write(inputBufferAddr, "")
-            elseif e.key == "space" then
-                if #currentInput < 80 then
-                    write(inputBufferAddr, currentInput .. " ")
-                end
-            elseif e.key and #e.key == 1 then
-                if #currentInput < 80 then
-                    write(inputBufferAddr, currentInput .. e.key)
+                
+                    write(inputBufferAddr, "")
+                elseif e.key == "space" then
+                    if #currentInput < 80 then
+                        write(inputBufferAddr, currentInput .. " ")
+                    end
+                elseif e.key and #e.key == 1 then
+                    if #currentInput < 80 then
+                        write(inputBufferAddr, currentInput .. e.key)
+                    end
                 end
             end
         end)
@@ -175,42 +181,44 @@ shell.run = function (process)
         elseif Y().devices.model == "Ore" or Y().devices.model == "Zero2" or Y().devices.model == "Zero5000" then
             speed = 0.05 -- 20 fps
         end
-        if Y().devices.model == "Zero5000 PRO MAX" then
-            speed = 0.01 -- 90fps
-        end
+        -- if Y().devices.model == "Zero5000 PRO MAX" then
+        --     speed = 0.01 -- 90fps
+        -- end
         coroutine.yield()
         while TRUE do
             SLEEP(speed)
-            Y().devices.GPU:clear()
+            if shell.isVisible then
+                Y().devices.GPU:clear()
 
-            local fullRenderText = ""
-            local start = read(consoleStartAddr)
-            local count = read(consoleCountAddr)
-            for i = 0, count - 1 do
-                local memoryIndex = (start + i) % CONSOLE_MAX_LINES
-                local lineText = read(consoleBufferAddr + memoryIndex)
-                if lineText then
-                    fullRenderText = fullRenderText .. lineText .. "\n"
+                local fullRenderText = ""
+                local start = read(consoleStartAddr)
+                local count = read(consoleCountAddr)
+                for i = 0, count - 1 do
+                    local memoryIndex = (start + i) % CONSOLE_MAX_LINES
+                    local lineText = read(consoleBufferAddr + memoryIndex)
+                    if lineText then
+                        fullRenderText = fullRenderText .. lineText .. "\n"
+                    end
                 end
-            end
-            local currentDir = read(currentDirectoryAddr)
-            local prompt = currentDir .. "> "
-            local currentInput = read(inputBufferAddr)
-			fullRenderText = fullRenderText .. prompt .. currentInput
+                local currentDir = read(currentDirectoryAddr)
+                local prompt = currentDir .. "> "
+                local currentInput = read(inputBufferAddr)
+			    fullRenderText = fullRenderText .. prompt .. currentInput
 
-			DTX(5, 5, fullRenderText, read(textColorAddr), FONT_SCALE)
+			    DTX(5, 5, fullRenderText, read(textColorAddr), FONT_SCALE)
 
-            if (love.timer.getTime() - read(cursorBlinkTimeAddr)) > 0.5 then
-                write(cursorBlinkTimeAddr, love.timer.getTime())
-                write(isCursorVisibleAddr, not read(isCursorVisibleAddr))
-            end
+                if (love.timer.getTime() - read(cursorBlinkTimeAddr)) > 0.5 then
+                    write(cursorBlinkTimeAddr, love.timer.getTime())
+                    write(isCursorVisibleAddr, not read(isCursorVisibleAddr))
+                end
 
-            if read(isCursorVisibleAddr) then
-                local cursorX = 5 + (#(prompt .. currentInput) * FONT_WIDTH)
-                local cursorY = 5 + (read(consoleCountAddr) * (8 * FONT_SCALE))
-                
-                if cursorY + FONT_HEIGHT <= read(monitorHeightAddr) then
-                    DRE(cursorX, cursorY, FONT_WIDTH, FONT_HEIGHT, read(textColorAddr))
+                if read(isCursorVisibleAddr) then
+                    local cursorX = 5 + (#(prompt .. currentInput) * FONT_WIDTH)
+                    local cursorY = 5 + (read(consoleCountAddr) * (8 * FONT_SCALE))
+
+                    if cursorY + FONT_HEIGHT <= read(monitorHeightAddr) then
+                        DRE(cursorX, cursorY, FONT_WIDTH, FONT_HEIGHT, read(textColorAddr))
+                    end
                 end
             end
             coroutine.yield()

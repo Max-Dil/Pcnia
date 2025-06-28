@@ -55,9 +55,9 @@ function m.init(OC, listener)
         elseif OC.devices.model == "Ore" or OC.devices.model == "Zero2" or OC.devices.model == "Zero5000" then
             speed = 0.05 -- 20 fps
         end
-                if OC.devices.model == "Zero5000 PRO MAX" then
-            speed = 0.01 -- 90fps
-        end
+        -- if OC.devices.model == "Zero5000 PRO MAX" then
+        --     speed = 0.01 -- 90fps
+        -- end
         while true do
             SLEEP(speed)
             local request = table.remove(requestQueue, 1)

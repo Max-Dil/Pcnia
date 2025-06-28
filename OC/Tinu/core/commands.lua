@@ -40,6 +40,31 @@ commands.init = function (config)
     fs = config.fs
 end
 
+commands.unload = function (shell, args, callback)
+    process.addProcess("[COMMANDS] - unload", function()
+        local app = read(9)
+        if not app then
+            callback("unload: Application module not found.")
+            process.removeProcess("[COMMANDS] - unload")
+            return
+        end
+
+        local path = args[1]
+        if not path then
+            callback("unload: missing file operand. Usage: unload <path>")
+            process.removeProcess("[COMMANDS] - unload")
+            return
+        end
+        
+        local fullPath = resolvePath(shell.getCurrentDirectory(), path)
+
+        app.unload(fullPath, function(success, message)
+            callback(message)
+            process.removeProcess("[COMMANDS] - unload")
+        end)
+    end)
+end
+
 commands.load = function (shell, args, callback)
 	process.addProcess("[COMMANDS] - load", function()
 		local app = read(9)
@@ -98,7 +123,7 @@ commands.help = function (shell, args, callback)
 		callback("OS: reboot, time, processes")
 		callback("Folders: ls, cd, mkdir, rmdir")
 		callback("Files: touch, rm, cp, mv")
-		callback("Apps: load, run")
+		callback("Apps: load, run, unload")
 		process.removeProcess("[COMMANDS] - help")
 	end)
 end

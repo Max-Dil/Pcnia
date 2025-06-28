@@ -1,10 +1,10 @@
 _G.love = love
 _G.json = require("json")
 
-local CPU = require("CPU.Zero5000 PRO MAX")
+local CPU = require("CPU.Ore2")
 local GPU = require("GPU.Avrora")
 local MOTHER = require("MOTHER.Alpeg1000")
-local BLOCK = require("POWER.Enma1")
+local BLOCK = require("POWER.Oni-X")
 local COOLER = require("COOLER.Swipan")
 local MONITOR = require("MONITOR.Huga")
 local RAM = require("RAM.Unsa 2x10m")
