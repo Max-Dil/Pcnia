@@ -64,6 +64,9 @@ OC.init = function(config)
                                 print("Init failed:", err)
                                 return
                             end
+                            local commands = require("OC.Tinu.core.commands")
+                            commands.init({oc = OC, process = X(), fs = Y()})
+                            write(8, commands)
                             config.disk:read("is_load", function (is_load)
                                 if is_load ~= "true" then
                                     config.disk:write("is_load", "true", function(success)
@@ -72,12 +75,43 @@ OC.init = function(config)
                                                 if success then
                                                     Y():mkDir("/user", function (success, error)
                                                         if success then
-                                                            config.disk:saveToFile("TinuOC")
-                                                            OC.start(X())
+                                                            Y():mkDir("/Tinu/programs", function (success, error)
+                                                                if success then
+                                                                    -- Y():getDirFiles("/Tinu", function (files, dirs)
+                                                                    --     print(json.encode(files), json.encode(dirs))
+                                                                    -- end, true)
+                                                                    local defaultApps = require("OC.Tinu.core.defaultPrograms")
+                                                                    local isLoad = 0
+                                                                    local installApps = {}
+                                                                    for key, value in pairs(defaultApps) do
+                                                                        isLoad = isLoad + 1
+                                                                        installApps[key] = false
+                                                                    end
+                                                                    for key, value in pairs(defaultApps) do
+                                                                        value(X(), function (success, error)
+                                                                            if success then
+                                                                                print(key .. " "..error)
+                                                                            else
+                                                                                print(key.." error installled: "..error)
+                                                                            end
+                                                                            if not installApps[key] then
+                                                                                isLoad = isLoad - 1
+                                                                            end
+                                                                        end)
+                                                                    end
+                                                                    while isLoad >= 1 do
+                                                                        coroutine.yield()
+                                                                    end
+                                                                    config.disk:saveToFile("TinuOC")
+                                                                    OC.start(X())
+                                                                else
+                                                                    print("Create /Tinu/programs "..error)
+                                                                end
+                                                            end, true)
                                                         else
                                                             print("Create /user "..error)
                                                         end
-                                                    end)
+                                                    end, true)
                                                 else
                                                     print("Create /Tinu" .. error)
                                                 end
@@ -112,7 +146,25 @@ OC.init = function(config)
                                     --         end)
                                     --     end)
                                     -- end)
+                                
+                                    -- read(5).mk_event("keypressed", function (e)
+                                    --     print(e.key)
+                                    -- end)
+                                end
 
+                                    local file = Y():open("/test.txt", "w", true)
+                                    file:write(
+[[
+test
+test2
+linestimor
+cerb
+]], function (success, erorr)
+                                        if not success then
+                                            print(erorr)
+                                        end
+                                        file.close()
+                                    end)
                                     local file = Y():open("/test.app", "w", true)
                                     file:write(json.encode({
                                         name = "test",
@@ -164,11 +216,6 @@ OC.init = function(config)
                                         end
                                         file.close()
                                     end)
-                                
-                                    -- read(5).mk_event("keypressed", function (e)
-                                    --     print(e.key)
-                                    -- end)
-                                end
                             end)
                     end, config.disk, OC)
                 end)

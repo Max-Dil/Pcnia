@@ -56,48 +56,6 @@ local function encode_nil(val)
 end
 
 
-local function encode_table(val, stack)
-  local res = {}
-  stack = stack or {}
-
-  -- Circular reference?
-  if stack[val] then error("circular reference") end
-
-  stack[val] = true
-
-  if rawget(val, 1) ~= nil or next(val) == nil then
-    -- Treat as array -- check keys are valid and it is not sparse
-    local n = 0
-    for k in pairs(val) do
-      if type(k) ~= "number" then
-        error("invalid table: mixed or invalid key types")
-      end
-      n = n + 1
-    end
-    if n ~= #val then
-      error("invalid table: sparse array")
-    end
-    -- Encode
-    for i, v in ipairs(val) do
-      table.insert(res, encode(v, stack))
-    end
-    stack[val] = nil
-    return "[" .. table.concat(res, ",") .. "]"
-
-  else
-    -- Treat as an object
-    for k, v in pairs(val) do
-      if type(k) ~= "string" then
-        error("invalid table: mixed or invalid key types")
-      end
-      table.insert(res, encode(k, stack) .. ":" .. encode(v, stack))
-    end
-    stack[val] = nil
-    return "{" .. table.concat(res, ",") .. "}"
-  end
-end
-
-
 local function encode_string(val)
   return '"' .. val:gsub('[%z\1-\31\\"]', escape_char) .. '"'
 end
@@ -111,6 +69,86 @@ local function encode_number(val)
   return string.format("%.14g", val)
 end
 
+local function encode_table(val, stack, opts)
+    local res = {}
+    stack = stack or {}
+    opts = opts or {}
+
+    if stack[val] then error("circular reference") end
+
+    stack[val] = true
+
+    if rawget(val, 1) ~= nil or next(val) == nil then
+        local n = 0
+        for k in pairs(val) do
+            if type(k) ~= "number" then
+                error("invalid table: mixed or invalid key types")
+            end
+            n = n + 1
+        end
+        if n ~= #val then
+            error("invalid table: sparse array")
+        end
+        for i, v in ipairs(val) do
+            table.insert(res, encode(v, stack, opts))
+        end
+        stack[val] = nil
+        if opts.pretty then
+            local indent = opts.indent or ""
+            local indent_str = string.rep(indent, (opts._depth or 0))
+            local child_indent_str = indent_str .. indent
+            return "[\n" .. child_indent_str .. table.concat(res, ",\n" .. child_indent_str) .. "\n" .. indent_str .. "]"
+        else
+            return "[" .. table.concat(res, ",") .. "]"
+        end
+
+    else
+        local keys = {}
+        for k in pairs(val) do
+            table.insert(keys, k)
+        end
+
+        if opts.sort_keys then
+            table.sort(keys, function(a, b)
+                if type(a) == type(b) then
+                    return a < b
+                else
+                    return tostring(a) < tostring(b)
+                end
+            end)
+        end
+        
+        for _, k in ipairs(keys) do
+            local v = val[k]
+            local key_str = encode(k, stack, opts)
+            local value_str = encode(v, stack, opts)
+            
+            if opts.align_keys then
+                -- Pad keys to align values
+                local max_key_length = 0
+                for _, k2 in ipairs(keys) do
+                    local k_str = encode(k2, stack, opts)
+                    if #k_str > max_key_length then
+                        max_key_length = #k_str
+                    end
+                end
+                key_str = key_str .. string.rep(" ", max_key_length - #key_str)
+            end
+            
+            table.insert(res, key_str .. ":" .. (opts.pretty and " " or "") .. value_str)
+        end
+        stack[val] = nil
+        
+        if opts.pretty then
+            local indent = opts.indent or ""
+            local indent_str = string.rep(indent, (opts._depth or 0))
+            local child_indent_str = indent_str .. indent
+            return "{\n" .. child_indent_str .. table.concat(res, ",\n" .. child_indent_str) .. "\n" .. indent_str .. "}"
+        else
+            return "{" .. table.concat(res, ",") .. "}"
+        end
+    end
+end
 
 local type_func_map = {
   [ "nil"     ] = encode_nil,
@@ -120,19 +158,24 @@ local type_func_map = {
   [ "boolean" ] = tostring,
 }
 
-
-encode = function(val, stack)
-  local t = type(val)
-  local f = type_func_map[t]
-  if f then
-    return f(val, stack)
-  end
-  error("unexpected type '" .. t .. "'")
+encode =  function(val, stack, opts)
+    opts = opts or {}
+    local t = type(val)
+    local f = type_func_map[t]
+    if f then
+        if t == "table" then
+            opts._depth = (opts._depth or 0) + 1
+            local res = f(val, stack, opts)
+            opts._depth = opts._depth - 1
+            return res
+        end
+        return f(val, stack)
+    end
+    error("unexpected type '" .. t .. "'")
 end
 
-
-function json.encode(val)
-  return ( encode(val) )
+function json.encode(val, opts)
+    return (encode(val, nil, opts))
 end
 
 

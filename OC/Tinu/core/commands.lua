@@ -1,6 +1,6 @@
 -- commands.lua
 local commands = {
-    app = {}
+    app = {},
 }
 local oc, process, fs
 
@@ -10,29 +10,30 @@ local function resolvePath(currentDir, targetPath)
     end
 
     if string.sub(targetPath, 1, 1) == "/" then
-        currentDir = "/"
-        targetPath = string.sub(targetPath, 2)
+        return targetPath
     end
 
-    local currentParts = {}
+    local parts = {}
     for part in string.gmatch(currentDir, "[^/]+") do
-        table.insert(currentParts, part)
+        if part ~= "" then
+            table.insert(parts, part)
+        end
     end
 
     for part in string.gmatch(targetPath, "[^/]+") do
         if part == ".." then
-            table.remove(currentParts)
+            if #parts > 0 then
+                table.remove(parts)
+            end
         elseif part ~= "." then
-            table.insert(currentParts, part)
+            table.insert(parts, part)
         end
     end
 
-    local newPath = "/" .. table.concat(currentParts, "/")
-    if #currentParts > 0 and newPath ~= "/" then
-    end
-    
+    local newPath = "/" .. table.concat(parts, "/")
     return newPath
 end
+commands.resolvePath = resolvePath
 
 commands.init = function (config)
     oc = config.oc

@@ -5,7 +5,7 @@ BETA процессор
 Предназначен чисто для тестов
 
 
-Уникальная 500 ядерная мощь
+Уникальная 20 ядерная мощь
 ]]
 
 local bit = require("bit")
@@ -126,7 +126,7 @@ local Processor = {
     
     cores = {},
     currentCore = 1,
-    countCores = 500,
+    countCores = 20,
 
     baseClockSpeed = 5500,
     currentClockSpeed = 5500,

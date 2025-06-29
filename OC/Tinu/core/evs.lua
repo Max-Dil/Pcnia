@@ -18,6 +18,28 @@ evs.init = function (OC, process)
         -- if OC.devices.model == "Zero5000 PRO MAX" then
         --     speed = 0.01 -- 90fps
         -- end
+        LDA({
+            ["'"] = '"',
+            ["="] = '+',
+            ["-"] = '_',
+            ["9"] = '(',
+            ["0"] = ')',
+            ["8"] = '*',
+            ["7"] = '&',
+            ["6"] = '^',
+            ["5"] = '%',
+            ["4"] = '$',
+            ["3"] = '#',
+            ["2"] = '@',
+            ["1"] = '!',
+            ["`"] = '~',
+            [";"] = ':',
+            ["["] = "{",
+            ["]"] = "}",
+            [","] = '<',
+            ["."] = '>',
+            ["/"] = '?',
+        })
         while true do
             SLEEP(speed)
             if #eventQueue > 0 then
@@ -27,6 +49,14 @@ evs.init = function (OC, process)
                     if operation.type == "predict" then
                         local name = operation.name
                         local data = operation.data
+
+                        if love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift") then
+                            if A()[data.key] then
+                                data.key = A()[data.key]
+                            else
+                                data.key = string.upper(data.key)
+                            end
+                        end
 
                         if evs.data[name] then
                             for _, callback in ipairs(evs.data[name]) do

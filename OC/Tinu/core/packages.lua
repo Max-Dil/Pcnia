@@ -46,7 +46,36 @@ local packages = {
         ram = read(0)
     },
     ["processes"] = {
-        processes = read(3)
+        processes = {
+            list = function(listener)
+                read(3).list(listener)
+            end,
+            addProcess = function(name, func, listener)
+                table.insert(PROCESSES, name)
+                read(3).addProcess(name, func, listener)
+            end,
+            removeProcess = function(name, listener)
+                for i=1, #PROCESSES, -1 do
+                    if PROCESSES[i] == name then
+                        table.remove(PROCESSES, i)
+                        break
+                    end
+                end
+                read(3).removeProcess(name, listener)
+            end,
+            findProcessById = function(id, listener)
+                read(3).findProcessById(id, listener)
+            end,
+            getProcessInfo = function(name, listener)
+                read(3).getProcessInfo(name, listener)
+            end,
+            suspendProcess = function(name, listener)
+                read(3).suspendProcess(name, listener)
+            end,
+            resumeProcess = function(name, listener)
+                read(3).resumeProcess(name, listener)
+            end,
+        },
     },
     ["event"] = {
         event = read(5)
@@ -56,6 +85,9 @@ local packages = {
     },
     ["app"] = {
         app = read(9)
+    },
+    ["fs"] = {
+        fs = read(4),
     },
 }
 ]==]

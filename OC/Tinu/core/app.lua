@@ -1,6 +1,14 @@
 local app = {}
 local process
 local fs
+local function split(str, delimiter)
+    local result = {}
+    if not str then return result end
+    for part in str:gmatch("[^" .. delimiter .. "]+") do
+        table.insert(result, part)
+    end
+    return result
+end
 
 --[[
 Структура приложений
@@ -19,6 +27,8 @@ TERMINAL_ISVISIBLE(isVisible)
 ADD_EVENT(name, listener)
 REMOVE_EVENT(name, listener)
 CLOSE()
+RESOLUTION()-- return scrennWidth, scrennHeight
+RESOLVE_PATH(currentDir, targetDir)
 ]]
 
 app.init = function (proc, listener)
@@ -106,6 +116,9 @@ local __APP__NAME__ = "]]..X().name..[["
 local __APP__MODULES__ = read(2).decode(']]..read(2).encode(X().modules)..[[')
 
 local EVENTS = {}
+local PROCESSES = {}
+table.insert(PROCESSES, "]]..path..[[")
+table.insert(PROCESSES, "]].."[APP] Run app to "..path..[[")
 
 local function CLOSE()
     if read(8).app[__APP__NAME__] then
@@ -117,8 +130,9 @@ local function CLOSE()
         end
     end
     read(7).isVisible = TRUE
-    read(3).removeProcess("]]..path..[[")
-    read(3).removeProcess("]].."[APP] Run app to "..path..[[")
+    for index, value in ipairs(PROCESSES) do
+        read(3).removeProcess(value)
+    end
     coroutine.yield()
 end
 
@@ -223,6 +237,14 @@ local function CLEAR(r, g ,b)
     if not read(7).isVisible then
         read(1).devices.GPU:clear(r, g ,b)
     end
+end
+
+local function RESOLUTION()
+    return read(1).devices.GPU.resolution.width, read(1).devices.GPU.resolution.height
+end
+
+local function RESOLVE_PATH(currentDir, targetDir)
+    return read(8).resolvePath(currentDir, targetDir)
 end
 ]]..require("OC.Tinu.core.packages")..[[
 
@@ -391,15 +413,22 @@ app.load = function (path, listener)
                     local charWidth = 7
                     local maxCharsPerLine = math.floor(monitorWidth / charWidth)
 
+                    listener(NIL, "======== Title ========", TRUE)
+                    local titleLines = split(X().title or "No title", "\n")
+                    for index, value in ipairs(titleLines) do
+                        listener(NIL, value, TRUE)
+                    end
+                    listener(NIL, "======== End ========", TRUE)
                     listener(NIL, "You allow access to these modules?", TRUE)
                     listener(NIL, "Modules:", TRUE)
                 
                     local dangerousModules = {
                         ["oc"] = "oc(dangerous!!!)",
                         ["luajit"] = "luajit(dangerous)",
-                        ["processes"] = "processes(dangerous)",
+                        ["processes"] = "processes(dangerous!!!)",
                         ["commands"] = "commands(dangerous)",
                         ["app"] = "app(dangerous)",
+                        ["fs"] = "fs(dangerous!!)",
                     }
                     local currentLine = ""
                     for i, module in ipairs(X().modules) do

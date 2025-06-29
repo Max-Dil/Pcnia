@@ -1,5 +1,4 @@
 -- shell.lua
-local commands = require("OC.Tinu.core.commands")
 
 local shell = {
     version = 1.3,
@@ -23,9 +22,7 @@ shell.run = function (process)
         if not fs then
             error("FileSystem not found at address 4")
         end
-
-        commands.init({oc = Y(), process = process, fs = fs})
-        write(8, commands)
+        local commands = read(8)
 
         ----------------------------------------------------------------------
         -- Memory Allocation & Constants
