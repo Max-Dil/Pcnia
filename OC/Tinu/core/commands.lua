@@ -545,7 +545,7 @@ commands.reboot = function (shell, args, callback)
 
                     LDA(oc.devices.RAM)
                     callback("[SYSTEM] Clearing RAM storage: " .. #A()._memory)
-                    free(0, #A()._memory)
+                    read(0).FREE(0, #A()._memory)
                     SLEEP(1)
 
                     process.removeProcess("[COMMANDS] - reboot")

@@ -29,6 +29,11 @@ shell.run = function (process)
         ----------------------------------------------------------------------
         local function alloc(count)
             local addr = A().TEMP()
+            if count then
+                for i = addr+1, addr + count, 1 do
+                    A().TEMP()
+                end
+            end
             return addr
         end
 
@@ -86,7 +91,7 @@ shell.run = function (process)
         local function clearConsole()
             write(consoleStartAddr, 0)
             write(consoleCountAddr, 0)
-            free(consoleBufferAddr+1, CONSOLE_MAX_LINES)
+            A().FREE(consoleBufferAddr+1, CONSOLE_MAX_LINES)
         end
         
         local shell_api = alloc()
@@ -127,7 +132,7 @@ shell.run = function (process)
                                 table.insert(read(args), read(parts)[i])
                             end
                         end
-                        free(parts)
+                        A().FREE(parts)
                     
                         if commands[read(cmd)] and read(cmd) ~= "init" then
                             commands[read(cmd)](read(shell_api), read(args), addLineToConsole)
@@ -143,8 +148,8 @@ shell.run = function (process)
                                 addLineToConsole("Unknown command: '" .. read(cmd) .. "'")
                             end
                         end
-                        free(args)
-                        free(cmd)
+                        A().FREE(args)
+                        A().FREE(cmd)
                     end
                 
                     write(inputBufferAddr, "")

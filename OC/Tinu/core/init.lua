@@ -42,10 +42,6 @@ OC.init = function(config)
         write(0, require("OC.Tinu.core.ram"))
         LDA(read(0))
 
-        read(11, function (addr, count)
-            A().FREE(addr, count)
-            free(addr, count)
-        end)
         A().init(OC, function () -- init ram system
             write(1, OC) -- oc
             write(2, require("OC.Tinu.core.components.json")) -- json

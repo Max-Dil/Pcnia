@@ -126,6 +126,8 @@ local PROCESSES = {}
 table.insert(PROCESSES, "]]..path..[[")
 table.insert(PROCESSES, "]].."[APP] Run app to "..path..[[")
 
+local RAM = read(0)
+
 local CLOSE
 local CLOSE_EVENT = function(e)
     if e.key == "escape" then
@@ -153,7 +155,12 @@ end
 read(5).mk_event("keypressed", CLOSE_EVENT)
 
 local function ALLOC(count)
-    local addr = read(0).TEMP()
+    local addr = RAM.TEMP()
+    if count then
+        for i = addr+1, addr + count, 1 do
+            A().TEMP()
+        end
+    end
     return addr
 end
 local function ADD_COMMAND(n, l)
@@ -168,8 +175,8 @@ local function ADD_COMMAND(n, l)
         return
     end
     read(8).app[__APP__NAME__][read(name)] = read(listener)
-    free(name)
-    free(listener)
+    RAM.FREE(name)
+    RAM.FREE(listener)
 end
 local function REMOVE_COMMAND(n)
     local name = ALLOC()
@@ -180,7 +187,7 @@ local function REMOVE_COMMAND(n)
     end
     read(8).app[__APP__NAME__][read(name)] = NIL
 
-    free(name)
+    RAM.FREE(name)
 end
 local function TERMINAL(com, arg, l)
     local command, args, listener = ALLOC(), ALLOC(), ALLOC()
@@ -190,9 +197,9 @@ local function TERMINAL(com, arg, l)
 
     read(8)[read(command)]({}, read(args), read(listener))
 
-    free(args)
-    free(command)
-    free(listener)
+    RAM.FREE(args)
+    RAM.FREE(command)
+    RAM.FREE(listener)
 end
 local function TERMINAL_ISVISIBLE(isVis)
     local isVisible = ALLOC()
@@ -201,7 +208,7 @@ local function TERMINAL_ISVISIBLE(isVis)
     __APP__VISIBLE__ = not read(isVisible)
     read(7).isVisible = read(isVisible)
 
-    free(isVisible)
+    RAM.FREE(isVisible)
 end
 local function ADD_EVENT(n, l)
     local name, listener = ALLOC(), ALLOC()
@@ -214,8 +221,8 @@ local function ADD_EVENT(n, l)
     table.insert(EVENTS[read(name)], read(listener))
     read(5).mk_event(read(name), read(listener))
 
-    free(name)
-    free(listener)
+    RAM.FREE(name)
+    RAM.FREE(listener)
 end
 local function REMOVE_EVENT(n, l)
     local name, listener = ALLOC(), ALLOC()
@@ -234,8 +241,8 @@ local function REMOVE_EVENT(n, l)
     end
     read(5).rm_event(read(name), read(listener))
 
-    free(name)
-    free(listener)
+    RAM.FREE(name)
+    RAM.FREE(listener)
 end
 
 local function CLEAR(r, g ,b)
@@ -285,7 +292,7 @@ local _G = {
         if addr <= 10 then
             return 0
         end
-        return free(addr, count)
+        return RAM.FREE(addr, count)
     end,
     ADD = ADD, -- +
     SUB = SUB, -- -
@@ -383,7 +390,7 @@ app.unload = function (path, listener)
                 read(8).app[appName] = nil
             end
 
-            free(A()[path].memory)
+            read(0).FREE(A()[path].memory)
         end
         
         A()[path] = nil
