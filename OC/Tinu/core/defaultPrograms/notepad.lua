@@ -18,6 +18,9 @@ WRITE(is_open, false)
 
 local function startEdit(path, callback)
     processes.addProcess("[NOTEPAD] - file edit path - "..path, function()
+        read(5).rm_event("keypressed", CLOSE_EVENT)
+
+        local READ, WRITE = read, write
         TERMINAL_ISVISIBLE(false)
 
         local FONT_SCALE = 1
@@ -28,17 +31,35 @@ local function startEdit(path, callback)
 
         local topBarText = "F5 - save, F1 - exit, Arrows - navigate"
 
-        local lines = {}
-        local isLOAd = TRUE
-        local isType = "txt"
+        local lines_addr = ALLOC()
+        local isLOAd_addr = ALLOC()
+        local isType_addr = ALLOC()
+        local cursorX_addr = ALLOC()
+        local cursorY_addr = ALLOC()
+        local scrollX_addr = ALLOC()
+        local scrollY_addr = ALLOC()
+        local maxVisibleLines_addr = ALLOC()
+        local maxVisibleChars_addr = ALLOC()
+        local modified_addr = ALLOC()
+
+        WRITE(lines_addr, {})
+        WRITE(isLOAd_addr, true)
+        WRITE(isType_addr, "txt")
+        WRITE(cursorX_addr, 1)
+        WRITE(cursorY_addr, 1)
+        WRITE(scrollX_addr, 0)
+        WRITE(scrollY_addr, 0)
+        WRITE(maxVisibleLines_addr, math.floor((height - 20 - FONT_HEIGHT) / FONT_HEIGHT))
+        WRITE(maxVisibleChars_addr, math.floor((width - 10) / FONT_WIDTH))
+        WRITE(modified_addr, false)
 
         local file = read(4):open(path, "r", true)
         if file.fileExt == "json" then
-            isType = "json"
+            WRITE(isType_addr, "json")
         end
         
         file:read(function(value, error)
-            if isType == "json" then
+            if READ(isType_addr) == "json" then
                 local success, parsed = pcall(read(2).decode, value or "")
                 if success and parsed then
                     value = read(2).encode(parsed, {
@@ -49,61 +70,67 @@ local function startEdit(path, callback)
                     })
                 end
             end
-            lines = split(value or "", "\n")
-            isLOAd = false
+            local split_lines = split(value or "", "\n")
+            WRITE(lines_addr, split_lines)
+            WRITE(isLOAd_addr, false)
         end)
-        while isLOAd do
+        
+        while READ(isLOAd_addr) do
             coroutine.yield()
         end
-
-        local cursorX = 1
-        local cursorY = 1
-        local scrollX = 0
-        local scrollY = 0
-        local maxVisibleLines = math.floor((height - 20 - FONT_HEIGHT) / FONT_HEIGHT)
-        local maxVisibleChars = math.floor((width - 10) / FONT_WIDTH)
-        local modified = false
 
         local function clamp(value, min, max)
             return math.max(min, math.min(max, value))
         end
 
         local function updateCursor()
-            cursorY = clamp(cursorY, 1, #lines)
-            cursorX = clamp(cursorX, 1, #lines[cursorY] + 1)
+            local cursorY = clamp(READ(cursorY_addr), 1, #READ(lines_addr))
+            local cursorX = clamp(READ(cursorX_addr), 1, #READ(lines_addr)[cursorY] + 1)
+            WRITE(cursorY_addr, cursorY)
+            WRITE(cursorX_addr, cursorX)
             
-            if cursorY < scrollY + 1 then
-                scrollY = cursorY - 1
-            elseif cursorY > scrollY + maxVisibleLines then
-                scrollY = cursorY - maxVisibleLines
+            if cursorY < READ(scrollY_addr) + 1 then
+                WRITE(scrollY_addr, cursorY - 1)
+            elseif cursorY > READ(scrollY_addr) + READ(maxVisibleLines_addr) then
+                WRITE(scrollY_addr, cursorY - READ(maxVisibleLines_addr))
             end
             
-            if cursorX < scrollX + 1 then
-                scrollX = cursorX - 1
-            elseif cursorX > scrollX + maxVisibleChars then
-                scrollX = cursorX - maxVisibleChars
+            if cursorX < READ(scrollX_addr) + 1 then
+                WRITE(scrollX_addr, cursorX - 1)
+            elseif cursorX > READ(scrollX_addr) + READ(maxVisibleChars_addr) then
+                WRITE(scrollX_addr, cursorX - READ(maxVisibleChars_addr))
             end
             
-            scrollY = clamp(scrollY, 0, math.max(0, #lines - maxVisibleLines))
-            scrollX = clamp(scrollX, 0, math.max(0, #lines[cursorY] - maxVisibleChars + 10))
+            WRITE(scrollY_addr, clamp(READ(scrollY_addr), 0, math.max(0, #READ(lines_addr) - READ(maxVisibleLines_addr))))
+            WRITE(scrollX_addr, clamp(READ(scrollX_addr), 0, math.max(0, #READ(lines_addr)[cursorY] - READ(maxVisibleChars_addr) + 10)))
         end
 
         local keypressed
         keypressed = function(e)
-            if e.key == "f1" then
-                if modified then
+            if e.key == "f1" or e.key == "escape" then
+                if READ(modified_addr) then
                     -- TODO: Add confirmation dialog for unsaved changes
                 end
                 read(3).removeProcess("[NOTEPAD] - file edit path - "..path, function()
                     TERMINAL_ISVISIBLE(true)
                     REMOVE_EVENT("keypressed", keypressed)
+                    free(lines_addr, 1)
+                    free(isLOAd_addr, 1)
+                    free(isType_addr, 1)
+                    free(cursorX_addr, 1)
+                    free(cursorY_addr, 1)
+                    free(scrollX_addr, 1)
+                    free(scrollY_addr, 1)
+                    free(maxVisibleLines_addr, 1)
+                    free(maxVisibleChars_addr, 1)
+                    free(modified_addr, 1)
                     write(is_open, false)
                     coroutine.yield()
                 end)
             elseif e.key == "f5" then
-                local content = table.concat(lines, "\n")
+                local content = table.concat(READ(lines_addr), "\n")
 
-                if isType == "json" then
+                if READ(isType_addr) == "json" then
                     local success, parsed = pcall(read(2).decode, content)
                     if success and parsed then
                         content = read(2).encode(parsed)
@@ -112,87 +139,113 @@ local function startEdit(path, callback)
                 
                 read(4):open(path, "w", true):write(content, function(success, err)
                     if success then
-                        modified = false
+                        WRITE(modified_addr, false)
                     else
                         -- TODO: Show error message
                     end
                 end)
             elseif e.key == "up" then
-                cursorY = cursorY - 1
+                WRITE(cursorY_addr, READ(cursorY_addr) - 1)
                 updateCursor()
             elseif e.key == "down" then
-                cursorY = cursorY + 1
+                WRITE(cursorY_addr, READ(cursorY_addr) + 1)
                 updateCursor()
             elseif e.key == "left" then
-                cursorX = cursorX - 1
+                WRITE(cursorX_addr, READ(cursorX_addr) - 1)
                 updateCursor()
             elseif e.key == "right" then
-                cursorX = cursorX + 1
+                WRITE(cursorX_addr, READ(cursorX_addr) + 1)
                 updateCursor()
             elseif e.key == "home" then
-                cursorX = 1
+                WRITE(cursorX_addr, 1)
                 updateCursor()
             elseif e.key == "end" then
-                cursorX = #lines[cursorY] + 1
+                WRITE(cursorX_addr, #READ(lines_addr)[READ(cursorY_addr)] + 1)
                 updateCursor()
             elseif e.key == "pageup" then
-                cursorY = cursorY - maxVisibleLines
+                WRITE(cursorY_addr, READ(cursorY_addr) - READ(maxVisibleLines_addr))
                 updateCursor()
             elseif e.key == "pagedown" then
-                cursorY = cursorY + maxVisibleLines
+                WRITE(cursorY_addr, READ(cursorY_addr) + READ(maxVisibleLines_addr))
                 updateCursor()
             elseif e.key == "backspace" then
+                local lines = READ(lines_addr)
+                local cursorY = READ(cursorY_addr)
+                local cursorX = READ(cursorX_addr)
+                
                 if cursorX > 1 then
                     local line = lines[cursorY]
                     lines[cursorY] = line:sub(1, cursorX-2) .. line:sub(cursorX)
-                    cursorX = cursorX - 1
-                    modified = true
+                    WRITE(cursorX_addr, cursorX - 1)
+                    WRITE(modified_addr, true)
                 elseif cursorY > 1 then
                     local prevLineLength = #lines[cursorY-1]
                     lines[cursorY-1] = lines[cursorY-1] .. lines[cursorY]
                     table.remove(lines, cursorY)
-                    cursorY = cursorY - 1
-                    cursorX = prevLineLength + 1
-                    modified = true
+                    WRITE(cursorY_addr, cursorY - 1)
+                    WRITE(cursorX_addr, prevLineLength + 1)
+                    WRITE(modified_addr, true)
                 end
+                WRITE(lines_addr, lines)
                 updateCursor()
             elseif e.key == "delete" then
+                local lines = READ(lines_addr)
+                local cursorY = READ(cursorY_addr)
+                local cursorX = READ(cursorX_addr)
                 local line = lines[cursorY]
+                
                 if cursorX <= #line then
                     lines[cursorY] = line:sub(1, cursorX-1) .. line:sub(cursorX+1)
-                    modified = true
+                    WRITE(modified_addr, true)
                 elseif cursorY < #lines then
                     lines[cursorY] = line .. lines[cursorY+1]
                     table.remove(lines, cursorY+1)
-                    modified = true
+                    WRITE(modified_addr, true)
                 end
+                WRITE(lines_addr, lines)
                 updateCursor()
             elseif e.key == "return" then
+                local lines = READ(lines_addr)
+                local cursorY = READ(cursorY_addr)
+                local cursorX = READ(cursorX_addr)
                 local line = lines[cursorY]
                 local newLine = line:sub(cursorX)
                 lines[cursorY] = line:sub(1, cursorX-1)
                 table.insert(lines, cursorY+1, newLine)
-                cursorY = cursorY + 1
-                cursorX = 1
-                modified = true
+                WRITE(cursorY_addr, cursorY + 1)
+                WRITE(cursorX_addr, 1)
+                WRITE(modified_addr, true)
+                WRITE(lines_addr, lines)
                 updateCursor()
             elseif e.key == "space" then
+                local lines = READ(lines_addr)
+                local cursorY = READ(cursorY_addr)
+                local cursorX = READ(cursorX_addr)
                 local line = lines[cursorY]
                 lines[cursorY] = line:sub(1, cursorX-1) .. " " .. line:sub(cursorX)
-                cursorX = cursorX + 1
-                modified = true
+                WRITE(cursorX_addr, cursorX + 1)
+                WRITE(modified_addr, true)
+                WRITE(lines_addr, lines)
                 updateCursor()
             elseif e.key == "tab" then
+                local lines = READ(lines_addr)
+                local cursorY = READ(cursorY_addr)
+                local cursorX = READ(cursorX_addr)
                 local line = lines[cursorY]
                 lines[cursorY] = line:sub(1, cursorX-1) .. "  " .. line:sub(cursorX)
-                cursorX = cursorX + 1
-                modified = true
+                WRITE(cursorX_addr, cursorX + 1)
+                WRITE(modified_addr, true)
+                WRITE(lines_addr, lines)
                 updateCursor()
             elseif e.key and #e.key == 1 then
+                local lines = READ(lines_addr)
+                local cursorY = READ(cursorY_addr)
+                local cursorX = READ(cursorX_addr)
                 local line = lines[cursorY]
                 lines[cursorY] = line:sub(1, cursorX-1) .. e.key .. line:sub(cursorX)
-                cursorX = cursorX + 1
-                modified = true
+                WRITE(cursorX_addr, cursorX + 1)
+                WRITE(modified_addr, true)
+                WRITE(lines_addr, lines)
                 updateCursor()
             end
         end
@@ -204,23 +257,24 @@ local function startEdit(path, callback)
             CLEAR()
             
             ----- top bar ----
-            DTX(5, 5, "File: "..path..(modified and " *" or ""), {255, 255, 255}, FONT_SCALE)
+            DTX(5, 5, "File: "..path..(READ(modified_addr) and " *" or ""), {255, 255, 255}, FONT_SCALE)
             DTX(width - 5 - (#topBarText * FONT_WIDTH), 5, topBarText, {255, 255, 255}, FONT_SCALE)
             DLN(0, 9 + FONT_HEIGHT, width, 9 + FONT_HEIGHT, {0, 255, 0})
             ------------------
 
             ---- lines -------
-            local startLine = scrollY + 1
-            local endLine = math.min(startLine + maxVisibleLines - 1, #lines)
+            local lines = READ(lines_addr)
+            local startLine = READ(scrollY_addr) + 1
+            local endLine = math.min(startLine + READ(maxVisibleLines_addr) - 1, #lines)
             
             for i = startLine, endLine do
                 local line = lines[i]
-                local visibleText = line:sub(scrollX + 1, scrollX + maxVisibleChars)
+                local visibleText = line:sub(READ(scrollX_addr) + 1, READ(scrollX_addr) + READ(maxVisibleChars_addr))
                 DTX(5, 12 + FONT_HEIGHT + (i - startLine) * FONT_HEIGHT, visibleText, {255, 255, 255}, FONT_SCALE)
 
-                if i == cursorY then
-                    local cursorPosX = cursorX - scrollX
-                    if cursorPosX >= 1 and cursorPosX <= maxVisibleChars + 1 then
+                if i == READ(cursorY_addr) then
+                    local cursorPosX = READ(cursorX_addr) - READ(scrollX_addr)
+                    if cursorPosX >= 1 and cursorPosX <= READ(maxVisibleChars_addr) + 1 then
                         local cursorScreenX = 5 + (cursorPosX - 1) * FONT_WIDTH
                         local cursorScreenY = 12 + FONT_HEIGHT + (i - startLine) * FONT_HEIGHT
                         DRE(cursorScreenX, cursorScreenY, FONT_WIDTH-2, FONT_HEIGHT, {255, 255, 255})
@@ -228,16 +282,16 @@ local function startEdit(path, callback)
                 end
             end
             
-            if scrollY > 0 then
+            if READ(scrollY_addr) > 0 then
                 DTX(width - 15, 15, "↑", {200, 200, 200}, FONT_SCALE)
             end
-            if scrollY < #lines - maxVisibleLines then
+            if READ(scrollY_addr) < #lines - READ(maxVisibleLines_addr) then
                 DTX(width - 15, height - 15, "↓", {200, 200, 200}, FONT_SCALE)
             end
-            if scrollX > 0 then
+            if READ(scrollX_addr) > 0 then
                 DTX(5, height - 15, "←", {200, 200, 200}, FONT_SCALE)
             end
-            if scrollX < #lines[cursorY] - maxVisibleChars then
+            if READ(scrollX_addr) < #lines[READ(cursorY_addr)] - READ(maxVisibleChars_addr) then
                 DTX(width - 15, height - 15, "→", {200, 200, 200}, FONT_SCALE)
             end
             ------------------

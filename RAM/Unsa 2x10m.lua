@@ -111,7 +111,7 @@ function Unsa2x1GB:read(address, size)
     self.utilization = math.min(1, self.usedMemory / self.capacity)
     self.currentPower = self.powerUsage.active
     self._lastAccessTime = os.clock()
-    
+
     return unpack(data)
 end
 

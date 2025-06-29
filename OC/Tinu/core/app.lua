@@ -101,7 +101,13 @@ app.run = function (path, listener)
         end
         if isSuccess then
             LDA(read(10))
-            local success, error = pcall(json.decode, A()[path].data)
+            local success, error
+            if A()[path].ext == "json" then
+                success, error = pcall(json.decode, A()[path].data)
+            else
+                local f = loadstring("return " .. A()[path].data)
+                success, error = pcall(f)
+            end
             if not success or A()[path].data == "" then
                 listener(NIL, A()[path].data == "" and "Error: broken package" or error)
                 process.removeProcess("[APP] Run app to "..path)
@@ -110,46 +116,44 @@ app.run = function (path, listener)
 
             LDX(error)
 
-local code =
-[[
+local defaultCode = [[
 local __APP__NAME__ = "]]..X().name..[["
 local __APP__MODULES__ = read(2).decode(']]..read(2).encode(X().modules)..[[')
+local __APP__VISIBLE__ = false
 
 local EVENTS = {}
 local PROCESSES = {}
 table.insert(PROCESSES, "]]..path..[[")
 table.insert(PROCESSES, "]].."[APP] Run app to "..path..[[")
 
-local function CLOSE()
-    if read(8).app[__APP__NAME__] then
-        read(8).app[__APP__NAME__] = NIL
-    end
-    for key, value in pairs(EVENTS) do
-        for index, value2 in ipairs(EVENTS[key]) do
-            read(5).rm_event(key, value2)
-        end
-    end
-    read(7).isVisible = TRUE
-    for index, value in ipairs(PROCESSES) do
-        read(3).removeProcess(value)
-    end
-    coroutine.yield()
-end
-
-read(5).mk_event("keypressed", function(e)
+local CLOSE
+local CLOSE_EVENT = function(e)
     if e.key == "escape" then
         CLOSE()
     end
-end)
+end
+CLOSE = function()
+    if __APP__VISIBLE__ then
+        if read(8).app[__APP__NAME__] then
+            read(8).app[__APP__NAME__] = NIL
+        end
+        read(5).rm_event("keypressed", CLOSE_EVENT)
+        for key, value in pairs(EVENTS) do
+            for index, value2 in ipairs(EVENTS[key]) do
+                read(5).rm_event(key, value2)
+            end
+        end
+        __APP__VISIBLE__ = false
+        read(7).isVisible = TRUE
+        for index, value in ipairs(PROCESSES) do
+            read(3).removeProcess(value)
+        end
+    end
+end
+read(5).mk_event("keypressed", CLOSE_EVENT)
 
 local function ALLOC(count)
     local addr = read(0).TEMP()
-    write(addr, 0)
-    if count then
-        for i = 1, count, 1 do
-            write(addr+i, 0)
-        end
-    end
     return addr
 end
 local function ADD_COMMAND(n, l)
@@ -194,6 +198,7 @@ local function TERMINAL_ISVISIBLE(isVis)
     local isVisible = ALLOC()
     write(isVisible, isVis)
 
+    __APP__VISIBLE__ = not read(isVisible)
     read(7).isVisible = read(isVisible)
 
     free(isVisible)
@@ -315,9 +320,12 @@ for _, module_name in ipairs(__APP__MODULES__) do
 end
 
 setfenv(1, setmetatable({}, {__index =_G}))
-]]..X().code
+]]
+local code =
+defaultCode..X().code
             -- Запуск
-            print(code)
+            print(X().code)
+            print(#split(defaultCode, "\n"))
             local f, error = loadstring(code, path)
             local isSucces = true
             if f then
@@ -363,6 +371,11 @@ app.unload = function (path, listener)
 
         if A()[path].memory then
             local appData = json.decode(A()[path].data)
+            if A()[path].ext == "json" then
+                appData = json.decode(A()[path].data)
+            else
+                appData = loadstring("return " .. A()[path].data)()
+            end
             local appName = appData.name
 
             process.removeProcess(path)
@@ -400,9 +413,16 @@ app.load = function (path, listener)
                 return
             end
 
-            local success, error = pcall(json.decode, data)
+            local success, error
+            if file.fileExt == "app" then
+                local f = loadstring("return " .. data)
+                success, error = pcall(f)
+            else
+                success, error = pcall(json.decode, data)
+            end
             if not success or data == "" then
                 listener(NIL, data == "" and "Error: broken package" or error)
+                process.removeProcess("[APP] Load app to "..path)
                 return
             end
             LDX(error)
@@ -483,6 +503,7 @@ app.load = function (path, listener)
             LDA(read(10))
             A()[path] = {
                 data = data,
+                ext = file.fileExt == "app" and "app" or "json"
             }
             write(10, A())
             listener(TRUE)

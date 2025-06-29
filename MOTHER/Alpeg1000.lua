@@ -47,7 +47,6 @@ local Alpeg1000 = {
             if #self.memoryModules > 0 then
                 return self.memoryModules[1]:read(address, size)
             end
-            return 0
         end,
         
         write = function(self, address, ...)

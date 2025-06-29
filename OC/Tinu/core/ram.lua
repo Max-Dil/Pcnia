@@ -2,26 +2,29 @@ local m = {}
 function m.init(OC, listener)
     OC.devices.CPU:addThread(function ()
         LDA(read(0))
-        A().__write, A().__read = write, read
-        A().__free = function(address, count)
-            OC.devices.RAM:free(address, count)
-        end
-        A().__addThread = function(...)
-            return OC.devices.CPU:addThread(...)
-        end
 
-        function m.TEMP()
-            LDX{i = 11, address = NIL, find = NIL} -- start 11 to Tinu.lua
-            while not X().address do
-                X().find = A().__read(X().i)
-                if not X().find then
-                    X().address = X().i
+        local i = 10
+        m.TEMP = function()
+            local address = nil
+            while not address do
+                i = ADD(i, 1)
+                local find = read(i)
+                if not find then
+                    address = i
                     break
                 end
-                X().i = ADD(X().i, 1)
             end
-            return X().address
+            return address
         end
+
+        m.FREE = function(addr, count)
+            for index = addr, count, 1 do
+                if i == index then
+                    i = SUB(i, 1)
+                end
+            end
+        end
+
         write(0, A())
         listener()
     end)

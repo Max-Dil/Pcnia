@@ -29,12 +29,6 @@ shell.run = function (process)
         ----------------------------------------------------------------------
         local function alloc(count)
             local addr = A().TEMP()
-            write(addr, 0)
-            if count then
-                for i = 1, count, 1 do
-                    write(addr+i, 0)
-                end
-            end
             return addr
         end
 

@@ -32,7 +32,7 @@ OC.init = function(config)
         config.disk:update(dt)
     end
 
-    config.disk:loadFromFile("TinuOC")
+    -- config.disk:loadFromFile("TinuOC")
     config.cpu:addThread(function ()
         LDA({255, 255, 255})
 
@@ -42,6 +42,10 @@ OC.init = function(config)
         write(0, require("OC.Tinu.core.ram"))
         LDA(read(0))
 
+        read(11, function (addr, count)
+            A().FREE(addr, count)
+            free(addr, count)
+        end)
         A().init(OC, function () -- init ram system
             write(1, OC) -- oc
             write(2, require("OC.Tinu.core.components.json")) -- json
@@ -165,57 +169,51 @@ cerb
                                         end
                                         file.close()
                                     end)
-                                    local file = Y():open("/test.app", "w", true)
-                                    file:write(json.encode({
-                                        name = "test",
-                                        version = "1.0",
-                                        title = "test",
-                                        code = [[
-                                            print("test")
-                                            ADD_COMMAND("hello", function(shell, args, callback)
-                                                callback(args[1] or "test hello <text>")
-                                            end)
-                                            ADD_COMMAND("help", function(shell, args, callback)
-                                                callback("Test app commands: hello")
-                                            end)
-
-                                            ADD_COMMAND("hide", function(shell, args, callback)
-                                                callback("Hide terminal")
-                                                TERMINAL_ISVISIBLE(false)
-                                                read(1).devices.GPU:clear()
-                                            end)
-
-                                            TERMINAL("help", {}, function(text)
-                                                print(text)
-                                            end)
-
-                                            local s = {}
-                                            ADD_EVENT("keypressed", function(e)
-                                                table.insert(s, e.key)
-                                            end)
-
-                                            TERMINAL_ISVISIBLE(false)
-                                            while TRUE do
-                                                coroutine.yield()
-                                                CLEAR()
-
-                                                DTX(200, 150, "TEST", {255, 0, 0}, 1)
-
-                                                local text = ""
-                                                for index, value in ipairs(s) do
-                                                    text = text .. value .. "\n"
-                                                end
-                                                DTX(5, 5, text, {0, 255, 0}, 1)
-                                                SLEEP(0.05)
-                                            end
-                                        ]],
-                                        modules = {"lua5.1"}
-                                    }), function (success, erorr)
-                                        if not success then
-                                            print(erorr)
-                                        end
-                                        file.close()
-                                    end)
+local file = Y():open("/test.app", "w", true)
+file:write([==[{
+    name = "test",
+    version = "1.0",
+    title = "test",
+    code = [[
+        print("test")
+        ADD_COMMAND("hello", function(shell, args, callback)
+            callback(args[1] or "test hello <text>")
+        end)
+        ADD_COMMAND("help", function(shell, args, callback)
+            callback("Test app commands: hello")
+        end)
+        ADD_COMMAND("hide", function(shell, args, callback)
+            callback("Hide terminal")
+            TERMINAL_ISVISIBLE(false)
+            read(1).devices.GPU:clear()
+        end)
+        TERMINAL("help", {}, function(text)
+            print(text)
+        end)
+        local s = {}
+        ADD_EVENT("keypressed", function(e)
+            table.insert(s, e.key)
+        end)
+        TERMINAL_ISVISIBLE(false)
+        while TRUE do
+            coroutine.yield()
+            CLEAR()
+            DTX(200, 150, "TEST", {255, 0, 0}, 1)
+            local text = ""
+            for index, value in ipairs(s) do
+                text = text .. value .. "\n"
+            end
+            DTX(5, 5, text, {0, 255, 0}, 1)
+            SLEEP(0.05)
+        end
+    ]],
+    modules = {"lua5.1"}
+}]==], function (success, erorr)
+    if not success then
+        print(erorr)
+    end
+    file.close()
+end)
                             end)
                     end, config.disk, OC)
                 end)
