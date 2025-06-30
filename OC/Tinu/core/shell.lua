@@ -5,6 +5,15 @@ local shell = {
     isVisible = true
 }
 
+local function split(str, delimiter)
+    local result = {}
+    if not str then return result end
+    for part in str:gmatch("[^" .. delimiter .. "]+") do
+        table.insert(result, part)
+    end
+    return result
+end
+
 shell.run = function (process)
     process.addProcess("shell.lua", function ()
 
@@ -74,16 +83,20 @@ shell.run = function (process)
         -- Console Helper Functions (Operating on RAM)
         ----------------------------------------------------------------------
         local function addLineToConsole(text)
-            local start = tonumber(read(consoleStartAddr)) or 0
-            local count = tonumber(read(consoleCountAddr)) or 0
-        
-            local index = (start + count) % CONSOLE_MAX_LINES
-            write(consoleBufferAddr + index, text)
-        
-            if count < CONSOLE_MAX_LINES then
-                write(consoleCountAddr, count + 1)
-            else
-                write(consoleStartAddr, (start + 1) % CONSOLE_MAX_LINES)
+            local lines = split(text, "\n")
+            local linesCount = #lines
+            for i = 1, linesCount, 1 do
+                local start = tonumber(read(consoleStartAddr)) or 0
+                local count = tonumber(read(consoleCountAddr)) or 0
+                
+                local index = (start + count) % CONSOLE_MAX_LINES
+                write(consoleBufferAddr + index, lines[i])
+                
+                if count < CONSOLE_MAX_LINES then
+                    write(consoleCountAddr, count + 1)
+                else
+                    write(consoleStartAddr, (start + 1) % CONSOLE_MAX_LINES)
+                end
             end
             print(text)
         end

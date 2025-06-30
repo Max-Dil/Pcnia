@@ -24,7 +24,7 @@ local function startEdit(path, callback)
         TERMINAL_ISVISIBLE(false)
 
         local FONT_SCALE = 1
-        local FONT_HEIGHT = 7 * FONT_SCALE
+        local FONT_HEIGHT = 8 * FONT_SCALE
         local FONT_WIDTH = 6 * FONT_SCALE
 
         local width, height = RESOLUTION()

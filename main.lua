@@ -1,7 +1,7 @@
 _G.love = love
 _G.json = require("json")
 
-local CPU = require("CPU.Ore2")
+local CPU = require("CPU.Zero5000 PRO MAX")
 local GPU = require("GPU.Avrora")
 local MOTHER = require("MOTHER.Alpeg1000")
 local BLOCK = require("POWER.Oni-X")

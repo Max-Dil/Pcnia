@@ -44,6 +44,14 @@ OC.init = function(config)
 
         A().init(OC, function () -- init ram system
             write(1, OC) -- oc
+            local s, err = pcall(function ()
+                write(11, require("socket.http"))
+                write(12, require("https"))
+                write(13, require("ltn12"))
+            end)
+            if not s then
+                print(err)
+            end
             write(2, require("OC.Tinu.core.components.json")) -- json
             LDX(require("OC.Tinu.core.processes"))
             X().init(OC, function ()

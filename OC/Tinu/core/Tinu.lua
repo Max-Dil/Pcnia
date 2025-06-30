@@ -15,4 +15,7 @@ return require("OC.Tinu.core.init")
 8 - commands
 9 - app system module
 10 - app kesh
+11 - http
+12 - https
+13 - ltn12
 ]]

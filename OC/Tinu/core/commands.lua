@@ -242,10 +242,150 @@ commands.help = function (shell, args, callback)
 		callback("Commands: help, clear, ver")
 		callback("OS: reboot, time, processes")
 		callback("Folders: ls, cd, mkdir, rmdir")
-		callback("Files: touch, rm, cp, mv")
+		callback("Files: touch, rm, cp, mv, cat, grep")
 		callback("Apps: load, run, unload, autoload")
 		process.removeProcess("[COMMANDS] - help")
 	end)
+end
+
+commands.install = function(shell, args, callback)
+    process.addProcess("[COMMANDS] - install", function()
+        local url = args[1]
+        if not url then
+            callback("install: missing URL operand. Usage: install <url>")
+            process.removeProcess("[COMMANDS] - install")
+            return
+        end
+
+        local http = read(11)
+        local ltn12 = read(13)
+        local json = read(2)
+
+        local response = {}
+        local _, status, headers = http.request{
+            url = url,
+            sink = ltn12.sink.table(response)
+        }
+
+        if status ~= 200 then
+            callback("install: Failed to download (status "..tostring(status)..")")
+            process.removeProcess("[COMMANDS] - install")
+            return
+        end
+
+        local content = table.concat(response)
+
+        local isJson = false
+        local appName = "unknown"
+        local extension = ".app"
+
+        local success, parsed = pcall(json.decode, content)
+        if success and parsed and parsed.name then
+            isJson = true
+            extension = ".json"
+            appName = parsed.name
+        else
+            appName = url:match("([^/]+)$") or "unknown"
+            appName = appName:gsub("%..+$", "")
+        end
+
+        local savePath = "/Tinu/programs/"..appName..extension
+
+        fs:mkDir("/Tinu/programs", function(dirSuccess, dirErr)
+            if not dirSuccess and dirErr ~= "Directory already exists" then
+                callback("install: Failed to create apps directory: "..tostring(dirErr))
+                process.removeProcess("[COMMANDS] - install")
+                return
+            end
+
+            local file = fs:open(savePath, "w", true)
+            if not file then
+                callback("install: Failed to open file for writing")
+                process.removeProcess("[COMMANDS] - install")
+                return
+            end
+
+            file:write(content, function(writeSuccess, writeErr)
+                if not writeSuccess then
+                    callback("install: Failed to save application: "..tostring(writeErr))
+                    process.removeProcess("[COMMANDS] - install")
+                    return
+                end
+
+                callback("Application successfully installed to "..savePath)
+
+                if isJson then
+                    commands.load(shell, {savePath}, function(loadMsg)
+                        callback(loadMsg)
+                        process.removeProcess("[COMMANDS] - install")
+                    end)
+                else
+                    process.removeProcess("[COMMANDS] - install")
+                end
+            end)
+        end)
+    end)
+end
+
+commands.cat = function(shell, args, callback)
+    process.addProcess("[COMMANDS] - cat", function()
+        local fileName = args[1]
+        if not fileName then
+            callback("cat: missing file operand. Usage: cat <file>")
+            process.removeProcess("[COMMANDS] - cat")
+            return
+        end
+
+        local filePath = resolvePath(shell.getCurrentDirectory(), fileName)
+        local file = fs:open(filePath, "r", true)
+
+        file:read(function(content, err)
+            if err then
+                callback("cat: " .. (err or "Failed to read file"))
+            else
+                callback(content or "<empty file>")
+            end
+            process.removeProcess("[COMMANDS] - cat")
+        end)
+    end)
+end
+
+commands.grep = function(shell, args, callback)
+    process.addProcess("[COMMANDS] - grep", function()
+        local searchText = args[1]
+        local fileName = args[2]
+
+        if not searchText or not fileName then
+            callback("Usage: grep <text> <file>")
+            process.removeProcess("[COMMANDS] - grep")
+            return
+        end
+
+        local filePath = resolvePath(shell.getCurrentDirectory(), fileName)
+        local file = fs:open(filePath, "r", true)
+
+        file:read(function(content, err)
+            if err then
+                callback("grep: " .. (err or "Failed to read file"))
+                process.removeProcess("[COMMANDS] - grep")
+                return
+            end
+
+            local lines = {}
+            for line in content:gmatch("[^\n]+") do
+                if line:find(searchText, 1, true) then  -- true для простого поиска (без regex)
+                    table.insert(lines, line)
+                end
+            end
+
+            if #lines == 0 then
+                callback("No matches found for '" .. searchText .. "'")
+            else
+                callback(table.concat(lines, "\n"))
+            end
+            process.removeProcess("[COMMANDS] - grep")
+        end)
+    end)
 end
 
 commands.touch = function (shell, args, callback)
