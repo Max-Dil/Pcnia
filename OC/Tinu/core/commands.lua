@@ -147,7 +147,7 @@ commands.autoload = function (shell, args, callback)
                     return
                 end
                 
-                local success, autoloadList = pcall(json.decode, data)
+                local success, autoloadList = pcall(read(2).decode, data)
                 if not success then
                     callback("Error reading autoload list: "..tostring(autoloadList))
                     process.removeProcess("[COMMANDS] - autoload")
@@ -179,7 +179,7 @@ commands.autoload = function (shell, args, callback)
                 fs:open(autoloadPath, "r", true):read(function(autoloadData)
                     local autoloadList = {}
                     if autoloadData and autoloadData ~= "" then
-                        local success, decoded = pcall(json.decode, autoloadData)
+                        local success, decoded = pcall(read(2).decode, autoloadData)
                         if success then
                             autoloadList = decoded
                         end
@@ -203,7 +203,7 @@ commands.autoload = function (shell, args, callback)
 
                             table.insert(autoloadList, fullPath)
                             
-                            fs:open(autoloadPath, "w", true):write(json.encode(autoloadList), function()
+                            fs:open(autoloadPath, "w", true):write(read(2).encode(autoloadList), function()
                                 callback("Application added to autoload: "..fullPath)
                                 read(1).devices.DISK:saveToFile("TinuOC")
                                 process.removeProcess("[COMMANDS] - autoload")
@@ -225,7 +225,7 @@ commands.autoload = function (shell, args, callback)
                             return
                         end
 
-                        fs:open(autoloadPath, "w", true):write(json.encode(autoloadList), function()
+                        fs:open(autoloadPath, "w", true):write(read(2).encode(autoloadList), function()
                             callback("Application removed from autoload: "..fullPath)
                             read(1).devices.DISK:saveToFile("TinuOC")
                             process.removeProcess("[COMMANDS] - autoload")
@@ -243,7 +243,7 @@ commands.help = function (shell, args, callback)
 		callback("OS: reboot, time, processes")
 		callback("Folders: ls, cd, mkdir, rmdir")
 		callback("Files: touch, rm, cp, mv, cat, grep")
-		callback("Apps: load, run, unload, autoload")
+		callback("Apps: load, run, unload, autoload, install")
 		process.removeProcess("[COMMANDS] - help")
 	end)
 end

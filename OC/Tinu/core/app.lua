@@ -103,7 +103,7 @@ app.run = function (path, listener)
             LDA(read(10))
             local success, error
             if A()[path].ext == "json" then
-                success, error = pcall(json.decode, A()[path].data)
+                success, error = pcall(read(2).decode, A()[path].data)
             else
                 local f = loadstring("return " .. A()[path].data)
                 success, error = pcall(f)
@@ -377,20 +377,27 @@ app.unload = function (path, listener)
         end
 
         if A()[path].memory then
-            local appData = json.decode(A()[path].data)
+            local appData
+            local success, error
             if A()[path].ext == "json" then
-                appData = json.decode(A()[path].data)
+                success, error = pcall(read(2).decode, A()[path].data)
+                if success then appData = error end
             else
-                appData = loadstring("return " .. A()[path].data)()
+                local f = loadstring("return " .. A()[path].data)
+                success, error = pcall(f)
+                if success then appData = error end
             end
-            local appName = appData.name
+            
+            if success and appData then
+                local appName = appData.name
 
-            process.removeProcess(path)
-            if read(8).app[appName] then
-                read(8).app[appName] = nil
+                process.removeProcess(path)
+                if read(8).app[appName] then
+                    read(8).app[appName] = nil
+                end
+
+                read(0).FREE(A()[path].memory)
             end
-
-            read(0).FREE(A()[path].memory)
         end
         
         A()[path] = nil
@@ -425,7 +432,7 @@ app.load = function (path, listener)
                 local f = loadstring("return " .. data)
                 success, error = pcall(f)
             else
-                success, error = pcall(json.decode, data)
+                success, error = pcall(read(2).decode, data)
             end
             if not success or data == "" then
                 listener(NIL, data == "" and "Error: broken package" or error)

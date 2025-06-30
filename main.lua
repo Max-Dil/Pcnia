@@ -1,7 +1,7 @@
 _G.love = love
 _G.json = require("json")
 
-local CPU = require("CPU.Zero5000 PRO MAX")
+local CPU = require("CPU.Ore2")
 local GPU = require("GPU.Avrora")
 local MOTHER = require("MOTHER.Alpeg1000")
 local BLOCK = require("POWER.Oni-X")
@@ -107,7 +107,7 @@ function love.draw()
 
 --     local hddInfo = DISK:getInfo()
 -- love.graphics.print(string.format("HDD: %s (%.1f°C)", hddInfo.model, hddInfo.temperature), 300, 390)
--- love.graphics.print(string.format("Usage: %.2fMOTHER/%.2fGB", 
+-- love.graphics.print(string.format("Usage: %.2fMB/%.2fGB", 
 --     hddInfo.usedSpace/1024, hddInfo.capacity/1024), 300, 410)
 -- love.graphics.print(string.format("Speed: R:%.1f/W:%.1f MOTHER/s", 
 --     hddInfo.readSpeed, hddInfo.writeSpeed), 300, 430)

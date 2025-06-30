@@ -41,6 +41,7 @@ local function startEdit(path, callback)
         local maxVisibleLines_addr = ALLOC()
         local maxVisibleChars_addr = ALLOC()
         local modified_addr = ALLOC()
+        local isRender_addr = ALLOC()
 
         WRITE(lines_addr, {})
         WRITE(isLOAd_addr, true)
@@ -52,6 +53,7 @@ local function startEdit(path, callback)
         WRITE(maxVisibleLines_addr, math.floor((height - 20 - FONT_HEIGHT) / FONT_HEIGHT))
         WRITE(maxVisibleChars_addr, math.floor((width - 10) / FONT_WIDTH))
         WRITE(modified_addr, false)
+        WRITE(isRender_addr, true)
 
         local file = read(4):open(path, "r", true)
         if file.fileExt == "json" then
@@ -91,18 +93,20 @@ local function startEdit(path, callback)
             
             if cursorY < READ(scrollY_addr) + 1 then
                 WRITE(scrollY_addr, cursorY - 1)
-            elseif cursorY > READ(scrollY_addr) + READ(maxVisibleLines_addr) then
+            elseif (cursorY > READ(scrollY_addr) + READ(maxVisibleLines_addr)) then
                 WRITE(scrollY_addr, cursorY - READ(maxVisibleLines_addr))
             end
             
             if cursorX < READ(scrollX_addr) + 1 then
                 WRITE(scrollX_addr, cursorX - 1)
-            elseif cursorX > READ(scrollX_addr) + READ(maxVisibleChars_addr) then
+            elseif (cursorX > READ(scrollX_addr) + READ(maxVisibleChars_addr)) then
                 WRITE(scrollX_addr, cursorX - READ(maxVisibleChars_addr))
             end
             
             WRITE(scrollY_addr, clamp(READ(scrollY_addr), 0, math.max(0, #READ(lines_addr) - READ(maxVisibleLines_addr))))
             WRITE(scrollX_addr, clamp(READ(scrollX_addr), 0, math.max(0, #READ(lines_addr)[cursorY] - READ(maxVisibleChars_addr) + 10)))
+            
+            WRITE(isRender_addr, true)
         end
 
         local keypressed
@@ -124,6 +128,7 @@ local function startEdit(path, callback)
                     RAM.FREE(maxVisibleLines_addr, 1)
                     RAM.FREE(maxVisibleChars_addr, 1)
                     RAM.FREE(modified_addr, 1)
+                    RAM.FREE(isRender_addr, 1)
                     write(is_open, false)
                     coroutine.yield()
                 end)
@@ -140,112 +145,84 @@ local function startEdit(path, callback)
                 read(4):open(path, "w", true):write(content, function(success, err)
                     if success then
                         WRITE(modified_addr, false)
+                        WRITE(isRender_addr, true)  -- Need to update the modified indicator
                     else
                         -- TODO: Show error message
                     end
                 end)
-            elseif e.key == "up" then
-                WRITE(cursorY_addr, READ(cursorY_addr) - 1)
-                updateCursor()
-            elseif e.key == "down" then
-                WRITE(cursorY_addr, READ(cursorY_addr) + 1)
-                updateCursor()
-            elseif e.key == "left" then
-                WRITE(cursorX_addr, READ(cursorX_addr) - 1)
-                updateCursor()
-            elseif e.key == "right" then
-                WRITE(cursorX_addr, READ(cursorX_addr) + 1)
-                updateCursor()
-            elseif e.key == "home" then
-                WRITE(cursorX_addr, 1)
-                updateCursor()
-            elseif e.key == "end" then
-                WRITE(cursorX_addr, #READ(lines_addr)[READ(cursorY_addr)] + 1)
-                updateCursor()
-            elseif e.key == "pageup" then
-                WRITE(cursorY_addr, READ(cursorY_addr) - READ(maxVisibleLines_addr))
-                updateCursor()
-            elseif e.key == "pagedown" then
-                WRITE(cursorY_addr, READ(cursorY_addr) + READ(maxVisibleLines_addr))
-                updateCursor()
-            elseif e.key == "backspace" then
-                local lines = READ(lines_addr)
-                local cursorY = READ(cursorY_addr)
-                local cursorX = READ(cursorX_addr)
-                
-                if cursorX > 1 then
-                    local line = lines[cursorY]
-                    lines[cursorY] = line:sub(1, cursorX-2) .. line:sub(cursorX)
-                    WRITE(cursorX_addr, cursorX - 1)
-                    WRITE(modified_addr, true)
-                elseif cursorY > 1 then
-                    local prevLineLength = #lines[cursorY-1]
-                    lines[cursorY-1] = lines[cursorY-1] .. lines[cursorY]
-                    table.remove(lines, cursorY)
-                    WRITE(cursorY_addr, cursorY - 1)
-                    WRITE(cursorX_addr, prevLineLength + 1)
-                    WRITE(modified_addr, true)
+            elseif e.key == "up" or e.key == "down" or e.key == "left" or e.key == "right" or
+                   e.key == "home" or e.key == "end" or e.key == "pageup" or e.key == "pagedown" then
+                -- Navigation keys
+                if e.key == "up" then
+                    WRITE(cursorY_addr, READ(cursorY_addr) - 1)
+                elseif e.key == "down" then
+                    WRITE(cursorY_addr, READ(cursorY_addr) + 1)
+                elseif e.key == "left" then
+                    WRITE(cursorX_addr, READ(cursorX_addr) - 1)
+                elseif e.key == "right" then
+                    WRITE(cursorX_addr, READ(cursorX_addr) + 1)
+                elseif e.key == "home" then
+                    WRITE(cursorX_addr, 1)
+                elseif e.key == "end" then
+                    WRITE(cursorX_addr, #READ(lines_addr)[READ(cursorY_addr)] + 1)
+                elseif e.key == "pageup" then
+                    WRITE(cursorY_addr, READ(cursorY_addr) - READ(maxVisibleLines_addr))
+                elseif e.key == "pagedown" then
+                    WRITE(cursorY_addr, READ(cursorY_addr) + READ(maxVisibleLines_addr))
                 end
-                WRITE(lines_addr, lines)
                 updateCursor()
-            elseif e.key == "delete" then
+            elseif e.key == "backspace" or e.key == "delete" or e.key == "return" or 
+                   e.key == "space" or e.key == "tab" or (e.key and #e.key == 1) then
                 local lines = READ(lines_addr)
                 local cursorY = READ(cursorY_addr)
                 local cursorX = READ(cursorX_addr)
                 local line = lines[cursorY]
                 
-                if cursorX <= #line then
-                    lines[cursorY] = line:sub(1, cursorX-1) .. line:sub(cursorX+1)
+                if e.key == "backspace" then
+                    if cursorX > 1 then
+                        lines[cursorY] = line:sub(1, cursorX-2) .. line:sub(cursorX)
+                        WRITE(cursorX_addr, cursorX - 1)
+                        WRITE(modified_addr, true)
+                    elseif cursorY > 1 then
+                        local prevLineLength = #lines[cursorY-1]
+                        lines[cursorY-1] = lines[cursorY-1] .. lines[cursorY]
+                        table.remove(lines, cursorY)
+                        WRITE(cursorY_addr, cursorY - 1)
+                        WRITE(cursorX_addr, prevLineLength + 1)
+                        WRITE(modified_addr, true)
+                    end
+                elseif e.key == "delete" then
+                    if cursorX <= #line then
+                        lines[cursorY] = line:sub(1, cursorX-1) .. line:sub(cursorX+1)
+                        WRITE(modified_addr, true)
+                    elseif cursorY < #lines then
+                        lines[cursorY] = line .. lines[cursorY+1]
+                        table.remove(lines, cursorY+1)
+                        WRITE(modified_addr, true)
+                    end
+                elseif e.key == "return" then
+                    local newLine = line:sub(cursorX)
+                    lines[cursorY] = line:sub(1, cursorX-1)
+                    table.insert(lines, cursorY+1, newLine)
+                    WRITE(cursorY_addr, cursorY + 1)
+                    WRITE(cursorX_addr, 1)
                     WRITE(modified_addr, true)
-                elseif cursorY < #lines then
-                    lines[cursorY] = line .. lines[cursorY+1]
-                    table.remove(lines, cursorY+1)
+                elseif e.key == "space" then
+                    lines[cursorY] = line:sub(1, cursorX-1) .. " " .. line:sub(cursorX)
+                    WRITE(cursorX_addr, cursorX + 1)
+                    WRITE(modified_addr, true)
+                elseif e.key == "tab" then
+                    lines[cursorY] = line:sub(1, cursorX-1) .. "  " .. line:sub(cursorX)
+                    WRITE(cursorX_addr, cursorX + 1)
+                    WRITE(modified_addr, true)
+                elseif e.key and #e.key == 1 then
+                    lines[cursorY] = line:sub(1, cursorX-1) .. e.key .. line:sub(cursorX)
+                    WRITE(cursorX_addr, cursorX + 1)
                     WRITE(modified_addr, true)
                 end
+                
                 WRITE(lines_addr, lines)
-                updateCursor()
-            elseif e.key == "return" then
-                local lines = READ(lines_addr)
-                local cursorY = READ(cursorY_addr)
-                local cursorX = READ(cursorX_addr)
-                local line = lines[cursorY]
-                local newLine = line:sub(cursorX)
-                lines[cursorY] = line:sub(1, cursorX-1)
-                table.insert(lines, cursorY+1, newLine)
-                WRITE(cursorY_addr, cursorY + 1)
-                WRITE(cursorX_addr, 1)
-                WRITE(modified_addr, true)
-                WRITE(lines_addr, lines)
-                updateCursor()
-            elseif e.key == "space" then
-                local lines = READ(lines_addr)
-                local cursorY = READ(cursorY_addr)
-                local cursorX = READ(cursorX_addr)
-                local line = lines[cursorY]
-                lines[cursorY] = line:sub(1, cursorX-1) .. " " .. line:sub(cursorX)
-                WRITE(cursorX_addr, cursorX + 1)
-                WRITE(modified_addr, true)
-                WRITE(lines_addr, lines)
-                updateCursor()
-            elseif e.key == "tab" then
-                local lines = READ(lines_addr)
-                local cursorY = READ(cursorY_addr)
-                local cursorX = READ(cursorX_addr)
-                local line = lines[cursorY]
-                lines[cursorY] = line:sub(1, cursorX-1) .. "  " .. line:sub(cursorX)
-                WRITE(cursorX_addr, cursorX + 1)
-                WRITE(modified_addr, true)
-                WRITE(lines_addr, lines)
-                updateCursor()
-            elseif e.key and #e.key == 1 then
-                local lines = READ(lines_addr)
-                local cursorY = READ(cursorY_addr)
-                local cursorX = READ(cursorX_addr)
-                local line = lines[cursorY]
-                lines[cursorY] = line:sub(1, cursorX-1) .. e.key .. line:sub(cursorX)
-                WRITE(cursorX_addr, cursorX + 1)
-                WRITE(modified_addr, true)
-                WRITE(lines_addr, lines)
+                WRITE(isRender_addr, true)
                 updateCursor()
             end
         end
@@ -253,49 +230,53 @@ local function startEdit(path, callback)
 
         write(is_open, true)
         while read(is_open) do
-            coroutine.yield()
-            CLEAR()
-            
-            ----- top bar ----
-            DTX(5, 5, "File: "..path..(READ(modified_addr) and " *" or ""), {255, 255, 255}, FONT_SCALE)
-            DTX(width - 5 - (#topBarText * FONT_WIDTH), 5, topBarText, {255, 255, 255}, FONT_SCALE)
-            DLN(0, 9 + FONT_HEIGHT, width, 9 + FONT_HEIGHT, {0, 255, 0})
-            ------------------
+            if READ(isRender_addr) then
+                CLEAR()
+                
+                ----- top bar ----
+                DTX(5, 5, "File: "..path..(READ(modified_addr) and " *" or ""), {255, 255, 255}, FONT_SCALE)
+                DTX(width - 5 - (#topBarText * FONT_WIDTH), 5, topBarText, {255, 255, 255}, FONT_SCALE)
+                DLN(0, 9 + FONT_HEIGHT, width, 9 + FONT_HEIGHT, {0, 255, 0})
+                ------------------
 
-            ---- lines -------
-            local lines = READ(lines_addr)
-            local startLine = READ(scrollY_addr) + 1
-            local endLine = math.min(startLine + READ(maxVisibleLines_addr) - 1, #lines)
-            
-            for i = startLine, endLine do
-                local line = lines[i]
-                local visibleText = line:sub(READ(scrollX_addr) + 1, READ(scrollX_addr) + READ(maxVisibleChars_addr))
-                DTX(5, 12 + FONT_HEIGHT + (i - startLine) * FONT_HEIGHT, visibleText, {255, 255, 255}, FONT_SCALE)
+                ---- lines -------
+                local lines = READ(lines_addr)
+                local startLine = READ(scrollY_addr) + 1
+                local endLine = math.min(startLine + READ(maxVisibleLines_addr) - 1, #lines)
+                
+                for i = startLine, endLine do
+                    local line = lines[i]
+                    local visibleText = line:sub(READ(scrollX_addr) + 1, READ(scrollX_addr) + READ(maxVisibleChars_addr))
+                    DTX(5, 12 + FONT_HEIGHT + (i - startLine) * FONT_HEIGHT, visibleText, {255, 255, 255}, FONT_SCALE)
 
-                if i == READ(cursorY_addr) then
-                    local cursorPosX = READ(cursorX_addr) - READ(scrollX_addr)
-                    if cursorPosX >= 1 and cursorPosX <= READ(maxVisibleChars_addr) + 1 then
-                        local cursorScreenX = 5 + (cursorPosX - 1) * FONT_WIDTH
-                        local cursorScreenY = 12 + FONT_HEIGHT + (i - startLine) * FONT_HEIGHT
-                        DRE(cursorScreenX, cursorScreenY, FONT_WIDTH-2, FONT_HEIGHT, {255, 255, 255})
+                    if i == READ(cursorY_addr) then
+                        local cursorPosX = READ(cursorX_addr) - READ(scrollX_addr)
+                        if cursorPosX >= 1 and cursorPosX <= READ(maxVisibleChars_addr) + 1 then
+                            local cursorScreenX = 5 + (cursorPosX - 1) * FONT_WIDTH
+                            local cursorScreenY = 12 + FONT_HEIGHT + (i - startLine) * FONT_HEIGHT
+                            DRE(cursorScreenX, cursorScreenY, FONT_WIDTH-2, FONT_HEIGHT, {255, 255, 255})
+                        end
                     end
                 end
+                
+                if READ(scrollY_addr) > 0 then
+                    DTX(width - 15, 15, "↑", {200, 200, 200}, FONT_SCALE)
+                end
+                if (READ(scrollY_addr) < #lines - READ(maxVisibleLines_addr)) then
+                    DTX(width - 15, height - 15, "↓", {200, 200, 200}, FONT_SCALE)
+                end
+                if READ(scrollX_addr) > 0 then
+                    DTX(5, height - 15, "←", {200, 200, 200}, FONT_SCALE)
+                end
+                if READ(scrollX_addr) < #lines[READ(cursorY_addr)] - READ(maxVisibleChars_addr) then
+                    DTX(width - 15, height - 15, "→", {200, 200, 200}, FONT_SCALE)
+                end
+                ------------------
+                
+                WRITE(isRender_addr, false)
             end
-            
-            if READ(scrollY_addr) > 0 then
-                DTX(width - 15, 15, "↑", {200, 200, 200}, FONT_SCALE)
-            end
-            if READ(scrollY_addr) < #lines - READ(maxVisibleLines_addr) then
-                DTX(width - 15, height - 15, "↓", {200, 200, 200}, FONT_SCALE)
-            end
-            if READ(scrollX_addr) > 0 then
-                DTX(5, height - 15, "←", {200, 200, 200}, FONT_SCALE)
-            end
-            if READ(scrollX_addr) < #lines[READ(cursorY_addr)] - READ(maxVisibleChars_addr) then
-                DTX(width - 15, height - 15, "→", {200, 200, 200}, FONT_SCALE)
-            end
-            ------------------
             SLEEP(0.05)
+            coroutine.yield()
         end
     end, function(success, error)
         if not success then
