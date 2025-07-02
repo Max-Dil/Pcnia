@@ -123,12 +123,12 @@ return function (self)
                 end
             end
         end,
-        DRM = function(x, y, data)
+        DRM = function(x, y, data, scale)
             self:applyLoadDelay()
             if self.gpu then
                 if self.gpu then
                     if self.gpu.driver == "Unakoda" then
-                        self.gpu:drawImage(x, y, data)
+                        self.gpu:drawImage(x, y, data, scale)
                     else
                     end
                 end

@@ -42,11 +42,19 @@ function Unakoda:drawLine(x1, y1, x2, y2, color)
     end
 end
 
-function Unakoda:drawImage(x, y, data)
-    for image_x = 1, #data, 1 do
-        for image_y = 1, #data[image_x], 1 do
-            self.pixel_draw_count = self.pixel_draw_count + 1
-            self:drawPixel(x + image_x-1, y + image_y-1, data[image_x][image_y])
+function Unakoda:drawImage(x, y, data, scale)
+    scale = scale or 1
+
+    for image_x = 1, #data do
+        for image_y = 1, #data[image_x] do
+            local draw_x = x + (image_x - 1) * scale
+            local draw_y = y + (image_y - 1) * scale
+            for sub_x = 0, scale - 1 do
+                for sub_y = 0, scale - 1 do
+                    self.pixel_draw_count = self.pixel_draw_count + 1
+                    self:drawPixel(draw_x + sub_x, draw_y + sub_y, data[image_x][image_y])
+                end
+            end
         end
     end
 end

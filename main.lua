@@ -46,8 +46,8 @@ function love.draw()
     OC.draw()
 
     -- love.graphics.scale(0.8, 0.8)
-    love.graphics.print(love.timer.getFPS(), 0, 0)
-    -- love.graphics.print("Memory usage: " .. collectgarbage("count") .. " KB", 10, 10)
+    -- love.graphics.print(love.timer.getFPS(), 0, 0)
+    love.graphics.print("Memory usage: " .. math.floor(collectgarbage("count")/1024) .. " MB", 10, 10)
 
 --     local info = CPU:getInfo()
 --     love.graphics.print(string.format("Frequency: %d/%d MHz (max: %d, min: %d)", 
